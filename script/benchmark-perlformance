@@ -1,0 +1,202 @@
+#! /usr/bin/env perl
+
+use Benchmark::Perl::Formance;
+
+my $pf = Benchmark::Perl::Formance->new;
+
+my $results = $pf->run;
+$pf->print_results($results);
+
+=pod
+
+=head1 NAME
+
+benchmark-perlformance - Frontend for Benchmark::Perl::Formance
+
+=head1 ABOUT
+
+This is the frontend commandline tool for starting the performance
+benchmark runs.
+
+After running it prints out the results which you can take to compare
+them to runs with other Perl versions, other architectures, different
+compile time configuration or on different machines.
+
+=head1 SYNOPSIS
+
+Usage:
+
+  $ benchmark-perlformance
+  $ benchmark-perlformance --plugins=SpamAssassin,Fib,Rx
+  $ benchmark-perlformance --plugins=SpamAssassin,Fib,Rx -q
+  $ benchmark-perlformance --plugins=SpamAssassin,Fib,Rx -v
+  $ benchmark-perlformance --plugins=SpamAssassin,Fib,Rx -vv -ccccc
+
+If run directly it uses the perl in your PATH:
+
+  $ /path/to/benchmark-perlformance
+
+
+To use another Perl start it via
+
+  $ /other/path/to/bin/perl /path/to/benchmark-perlformance
+
+
+To provide environment variables (for some plugins) you can do
+
+  $ PERLFORMANCE_SHOOTOUT_FASTA_N=5500 benchmark-perlformance [...]
+
+=head1 OPTIONS
+
+There are some options available.
+
+=over 4
+
+=item --help
+
+=item -h
+
+prints out a help page.
+
+=item --plugins=SpamAssassin,Fib,Rx
+
+Use only a particular list of sub benchmarks. The comma-separated list
+refers to Benchmark::Perl::Formance::Plugin::* respectively.
+
+=item --verbose
+
+=item -v
+
+=item -vv
+
+=item -vvv
+
+=item -vvvv
+
+=item -vvvvv
+
+Increases the verbosity level during the run of the
+benchmarks. Default is only print the result (and maybe some output
+from external tools).
+
+To increase the number of keys from your Perl Config that are included
+in the result use one or more -c options.
+
+Please note that only one single -v is not enough to see errors that
+occur when trying to load a plugin. They are only marked as
+"skipped". Use -vv to see the error message; -vvv for progress
+information; -vvvv or more should be used for debugging info.
+
+=item -q
+
+Be quiet; do not output results.
+
+=item --showconfig
+
+=item -c
+
+gives you the most basic information like Perl version, operating
+system name and architecture, i.e., C<perlpath>, C<version>,
+C<archname>, C<archname64>, C<osvers>.
+
+=item -cc
+
+adds C<gccversion>, C<gnulibc_version>, C<usemymalloc>,
+C<config_args>, C<optimize>.
+
+=item -ccc
+
+adds C<ccflags>, C<cppflags>, C<nm_so_opt>.
+
+=item -cccc
+
+currently does not increase information.
+
+=item -ccccc
+
+includes all info from Perls %Config hash.
+
+=back
+
+=head1 ENVIRONMENT VARIABLES
+
+There are some options available.
+
+=over 4
+
+=item PERLFORMANCE_TESTMODE_FAST
+
+If this variable is set to 1 then some plugins try to scale down the
+stress to take less time (with stupid results, of course). Mostly for
+easier development.
+
+=item PERLFORMANCE_SALEARN
+
+See L<Benchmark::Perl::Formance::Plugin::SpamAssassin|Benchmark::Perl::Formance::Plugin::SpamAssassin>. Contains
+the path to the "sa-learn" executable.
+
+=item PERLFORMANCE_THREADCOUNT
+
+See
+L<Benchmark::Perl::Formance::Plugin::Threads|Benchmark::Perl::Formance::Plugin::Threads>. Use
+this many count of threads. Default is 16.
+
+=item PERLFORMANCE_USE_FORKS
+
+If set to true you can activate the C<forks> drop-in replacement for
+threads.
+
+See
+L<Benchmark::Perl::Formance::Plugin::Threads|Benchmark::Perl::Formance::Plugin::Threads>.
+
+=back
+
+=head1 PLUGINS
+
+Please read the documentation for the used plugins, as they might need
+special configuration, usually via environment variables.
+
+=over 4
+
+=item L<Benchmark::Perl::Formance::Plugin::SpamAssassin|Benchmark::Perl::Formance::Plugin::SpamAssassin>
+
+SpamAssassin
+
+=item L<Benchmark::Perl::Formance::Plugin::Rx|Benchmark::Perl::Formance::Plugin::Rx>
+
+Regular expressions
+
+=item L<Benchmark::Perl::Formance::Plugin::Fib|Benchmark::Perl::Formance::Plugin::Fib>
+
+Fibonnacci numbers to stress recursion and function calls.
+
+=item L<Benchmark::Perl::Formance::Plugin::FibMoose|Benchmark::Perl::Formance::Plugin::FibMoose>
+
+Fibonnacci numbers with Moose to stress recursion and method calls.
+
+=item L<Benchmark::Perl::Formance::Plugin::FibMouse|Benchmark::Perl::Formance::Plugin::FibMouse>
+
+Fibonnacci numbers with Mouse to stress recursion and method calls.
+
+=item L<Benchmark::Perl::Formance::Plugin::FibOO|Benchmark::Perl::Formance::Plugin::FibOO>
+
+Fibonnacci numbers with plain Perl OO to stress recursion and method calls.
+
+=item L<Benchmark::Perl::Formance::Plugin::Threads|Benchmark::Perl::Formance::Plugin::Threads>
+
+Fibonnacci numbers with threads to stress thread handling.
+
+=item L<Benchmark::Perl::Formance::Plugin::Shootout|Benchmark::Perl::Formance::Plugin::Shootout>
+
+Runs some Perl benchmarks from the Language Shootout on
+alioth.debian.org.
+
+=item L<Benchmark::Perl::Formance::Plugin::MooseTS|Benchmark::Perl::Formance::Plugin::MooseTS>
+
+Runs part of the Moose testsuite.
+
+=back
+
+
+=cut
+
