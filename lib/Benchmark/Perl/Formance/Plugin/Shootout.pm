@@ -15,11 +15,11 @@ sub shootout
         no strict "refs";
 
         my %results = ();
+                             #fannkuch
+                             #knucleotide
+                             #mandelbrot
         for my $subtest (qw( binarytrees
-                             fannkuch
                              fasta
-                             knucleotide
-                             mandelbrot
                              nbody
                              pidigits
                              regexdna
@@ -27,7 +27,7 @@ sub shootout
                              spectralnorm
                           ))
         {
-                print STDERR " - $subtest...\n" if $options->{verbose} > 2;
+                print STDERR "#  - $subtest...\n" if $options->{verbose} > 2;
                 eval "use Benchmark::Perl::Formance::Plugin::Shootout::$subtest";
                 if (not $@) {
                         my $main = "Benchmark::Perl::Formance::Plugin::Shootout::$subtest"."::main";

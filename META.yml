@@ -2,25 +2,55 @@
 abstract: 'Perl Performance Benchmark Suite'
 author:
   - 'Steffen Schwigon, C<< <ss5 at renormalist.net> >>'
+build_requires:
+  ExtUtils::MakeMaker: 6.42
+configure_requires:
+  ExtUtils::MakeMaker: 6.42
 distribution_type: module
-generated_by: 'Module::Install version 0.77'
+generated_by: 'Module::Install version 0.93'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4
-name: Perl-Formance
+name: Benchmark-Perl-Formance
 no_index:
   directory:
     - inc
     - t
 requires:
+  Benchmark: 0
+  Benchmark::Perl::Formance::Cargo: 0
+  DBM::Deep: 0
+  DB_File: 0
+  Data::Structure::Util: 0
   Data::YAML::Writer: 0
+  DateTime::Calendar::Mayan: 0
+  Declare::Constraints::Simple: 0
+  File::Copy::Recursive: 0
+  File::ShareDir: 0
+  HTML::Parser: 0
+  HTTP::Headers: 0
+  Locale::US: 0
   Mail::SpamAssassin: 0
+  Math::GMP: 0
+  Module::Refresh: 0
+  Moose: 0.98
+  Mouse: 0
   Net::DNS: 0
   Net::IP: 0
-  Benchmark::Perl::Formance::Cargo: 0
+  NetAddr::IP: 0
+  POSIX::Regex: 0
+  Params::Coerce: 0
   Regexp::Common: 0
-  perl: 5.005
+  Test::Aggregate::Nested: 0
+  Test::Output: 0
+  Time::HiRes: 0
+  URI: 0
+  forks: 0
+  perl: 5.6.1
+  re::engine::LPEG: 0
+  re::engine::Lua: 0
+  re::engine::Oniguruma: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.01
+version: 0.02
