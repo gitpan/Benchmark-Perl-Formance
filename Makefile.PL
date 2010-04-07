@@ -30,6 +30,7 @@ requires 'Mouse';
 requires 'POSIX::Regex';
 requires 're::engine::Lua';
 requires 're::engine::LPEG';
+requires 're::engine::Plan9';
 requires 're::engine::Oniguruma';
 
 # Shootout
@@ -47,6 +48,10 @@ requires 'Test::Output';
 requires 'Module::Refresh';
 requires 'DBM::Deep';
 requires 'Declare::Constraints::Simple';
+
+# Primes
+requires 'Crypt::Primes';
+requires 'Math::Primality';
 
 install_script('script/benchmark-perlformance');
 WriteAll;

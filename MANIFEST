@@ -15,6 +15,7 @@ lib/Benchmark/Perl/Formance/Plugin/FibMouse.pm
 lib/Benchmark/Perl/Formance/Plugin/FibOO.pm
 lib/Benchmark/Perl/Formance/Plugin/Mem.pm
 lib/Benchmark/Perl/Formance/Plugin/MooseTS.pm
+lib/Benchmark/Perl/Formance/Plugin/Prime.pm
 lib/Benchmark/Perl/Formance/Plugin/RegexpCommonTS.pm
 lib/Benchmark/Perl/Formance/Plugin/Rx.pm
 lib/Benchmark/Perl/Formance/Plugin/RxCmp.pm

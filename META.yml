@@ -20,6 +20,7 @@ no_index:
 requires:
   Benchmark: 0
   Benchmark::Perl::Formance::Cargo: 0
+  Crypt::Primes: 0
   DBM::Deep: 0
   DB_File: 0
   Data::Structure::Util: 0
@@ -33,6 +34,7 @@ requires:
   Locale::US: 0
   Mail::SpamAssassin: 0
   Math::GMP: 0
+  Math::Primality: 0
   Module::Refresh: 0
   Moose: 0.98
   Mouse: 0
@@ -51,6 +53,7 @@ requires:
   re::engine::LPEG: 0
   re::engine::Lua: 0
   re::engine::Oniguruma: 0
+  re::engine::Plan9: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.02
+version: 0.03
