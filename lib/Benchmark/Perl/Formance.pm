@@ -10,10 +10,11 @@ use Exporter;
 use Getopt::Long ":config", "no_ignore_case", "bundling";
 use Data::Structure::Util "unbless";
 use Data::YAML::Writer;
+use Time::HiRes qw(gettimeofday);
 
 use vars qw($VERSION @ISA @EXPORT_OK);
 
-$VERSION = '0.03';
+$VERSION = '0.04';
 
 push @ISA, 'Exporter'; @EXPORT_OK = qw(run print_results);
 
@@ -143,21 +144,26 @@ sub run {
         } @plugins;
 
         # run plugins
+        my $before = gettimeofday();
         my %RESULTS;
         foreach (@run_plugins) {
                 no strict 'refs';
+                my @resultkeys = split(/::/);
                 print STDERR "# Run $_...\n" if $verbose;
-                $RESULTS{results}{$_} = &{"Benchmark::Perl::Formance::Plugin::${_}::main"}($options);
+                my $res = &{"Benchmark::Perl::Formance::Plugin::${_}::main"}($options);
+                eval "\$RESULTS{results}{".join("}{", @resultkeys)."} = \$res";
         }
+        my $after  = gettimeofday();
+        $RESULTS{perlformance}{overall_runtime} = $after - $before;
 
-        $RESULTS{perlformance_config}{env} =
+        $RESULTS{perlformance}{config}{env} =
         {
          map { $_ => $ENV{$_} }
          sort
          grep { /^PERLFORMANCE_/ }
          keys %ENV
         };
-        $RESULTS{perlformance_config}{use_forks} = $use_forks;
+        $RESULTS{perlformance}{config}{use_forks} = $use_forks;
 
         # Perl Config
         if ($showconfig)
