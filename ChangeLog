@@ -1,5 +1,15 @@
 2010-04-12  Steffen Schwigon  <ss5@renormalist.net>
 
+	* 0.05
+
+	* search executables like sa-learn or prove only besides $^X
+
+	* more yaml robustness tries as they all crash in a different
+	way on strange platforms; do some some eval-style try/catch
+	en passant...
+
+2010-04-12  Steffen Schwigon  <ss5@renormalist.net>
+
 	* 0.04
 
 	* sub-plugins (like Shootout/*.pm) now get same place in result

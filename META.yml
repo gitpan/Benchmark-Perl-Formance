@@ -4,7 +4,7 @@ author:
   - 'Steffen Schwigon, C<< <ss5 at renormalist.net> >>'
 build_requires:
   ExtUtils::MakeMaker: 6.42
-  YAML::XS: 0
+  YAML::Any: 0
 configure_requires:
   ExtUtils::MakeMaker: 6.42
 distribution_type: module
@@ -43,6 +43,7 @@ recommends:
   Test::Aggregate::Nested: 0
   Test::Output: 0
   URI: 0
+  YAML::Syck: 0
   forks: 0
   re::engine::LPEG: 0
   re::engine::Lua: 0
@@ -60,4 +61,4 @@ resources:
   bugtracker: http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Benchmark-Perl-Formance
   license: http://dev.perl.org/licenses/
   repository: git://github.com/renormalist/Benchmark-Perl-Formance.git
-version: 0.04
+version: 0.05
