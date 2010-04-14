@@ -1,3 +1,12 @@
+2010-04-14  Steffen Schwigon  <ss5@renormalist.net>
+
+	* 0.06
+
+	* Bummer! "More robustness" in 0.05 seemed to be a euphemism for
+	breaking always. Fix tests by using the Data::YAML::Reader which
+	is the sister of of the YAML generating module
+	Data::YAML::Writer. Other YAML modules occasionally break.
+
 2010-04-12  Steffen Schwigon  <ss5@renormalist.net>
 
 	* 0.05
