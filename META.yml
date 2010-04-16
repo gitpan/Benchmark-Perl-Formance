@@ -8,7 +8,7 @@ build_requires:
 configure_requires:
   ExtUtils::MakeMaker: 6.42
 distribution_type: module
-generated_by: 'Module::Install version 0.93'
+generated_by: 'Module::Install version 0.95'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -19,7 +19,6 @@ no_index:
     - inc
     - t
 recommends:
-  Benchmark::Perl::Formance::Cargo: 0
   Crypt::Primes: 0
   DBM::Deep: 0
   DB_File: 0
@@ -50,6 +49,7 @@ recommends:
   re::engine::Plan9: 0
 requires:
   Benchmark: 0
+  Benchmark::Perl::Formance::Cargo: 0
   Data::Structure::Util: 0
   Data::YAML::Writer: 0
   File::Copy::Recursive: 0
@@ -60,4 +60,4 @@ resources:
   bugtracker: http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Benchmark-Perl-Formance
   license: http://dev.perl.org/licenses/
   repository: git://github.com/renormalist/Benchmark-Perl-Formance.git
-version: 0.06
+version: 0.07
