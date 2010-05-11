@@ -126,7 +126,7 @@ sub main
 {
         my ($options) = @_;
 
-        my $goal   = $ENV{PERLFORMANCE_TESTMODE_FAST} ? 5000 : 50_000_000;
+        my $goal   = $ENV{PERLFORMANCE_TESTMODE_FAST} ? 5000 : 200_000;
         my $count  = $ENV{PERLFORMANCE_TESTMODE_FAST} ? 1    : 5;
 
         my $result;
@@ -145,7 +145,7 @@ __END__
 
 =head1 NAME
 
-Benchmark::Perl::Formance::Plugin::Shootout::nbody - Language shootout nbody plugin
+Benchmark::Perl::Formance::Plugin::Shootout::nbody - Language shootout plugin: nbody
 
 =head1 ABOUT
 

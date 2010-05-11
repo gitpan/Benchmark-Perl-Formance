@@ -57,6 +57,16 @@ recommends 'Declare::Constraints::Simple';
 recommends 'Crypt::Primes';
 recommends 'Math::Primality';
 
+# DPath
+recommends 'Data::DPath';
+recommends 'Devel::Size';
+recommends 'Clone';
+
+# P6STD
+recommends 'Text::Balanced';
+recommends 'YAML::XS';
+recommends 'Encode';
+
 install_script('script/benchmark-perlformance');
 
 repository 'git://github.com/renormalist/Benchmark-Perl-Formance.git';

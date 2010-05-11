@@ -81,7 +81,7 @@ sub main
 {
         my ($options) = @_;
 
-        my $goal   = $ENV{PERLFORMANCE_TESTMODE_FAST} ? 2 : 20;
+        my $goal   = $ENV{PERLFORMANCE_TESTMODE_FAST} ? 2 : 15;
         my $count  = $ENV{PERLFORMANCE_TESTMODE_FAST} ? 1 : 5;
 
         my $result;
@@ -101,7 +101,7 @@ __END__
 
 =head1 NAME
 
-Benchmark::Perl::Formance::Plugin::Shootout::binarytrees - Language shootout binarytrees plugin
+Benchmark::Perl::Formance::Plugin::Shootout::binarytrees - Language shootout plugin: binarytrees
 
 =head1 ABOUT
 

@@ -19,11 +19,15 @@ no_index:
     - inc
     - t
 recommends:
+  Clone: 0
   Crypt::Primes: 0
   DBM::Deep: 0
   DB_File: 0
+  Data::DPath: 0
   DateTime::Calendar::Mayan: 0
   Declare::Constraints::Simple: 0
+  Devel::Size: 0
+  Encode: 0
   HTML::Parser: 0
   HTTP::Headers: 0
   Locale::US: 0
@@ -41,7 +45,9 @@ recommends:
   Regexp::Common: 0
   Test::Aggregate::Nested: 0
   Test::Output: 0
+  Text::Balanced: 0
   URI: 0
+  YAML::XS: 0
   forks: 0
   re::engine::LPEG: 0
   re::engine::Lua: 0
@@ -60,4 +66,4 @@ resources:
   bugtracker: http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Benchmark-Perl-Formance
   license: http://dev.perl.org/licenses/
   repository: git://github.com/renormalist/Benchmark-Perl-Formance.git
-version: 0.07
+version: 0.08
