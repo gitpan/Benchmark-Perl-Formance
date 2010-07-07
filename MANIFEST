@@ -18,6 +18,7 @@ lib/Benchmark/Perl/Formance/Plugin/DPath.pm
 lib/Benchmark/Perl/Formance/Plugin/Fib.pm
 lib/Benchmark/Perl/Formance/Plugin/FibMoose.pm
 lib/Benchmark/Perl/Formance/Plugin/FibMouse.pm
+lib/Benchmark/Perl/Formance/Plugin/FibMXDeclare.pm
 lib/Benchmark/Perl/Formance/Plugin/FibOO.pm
 lib/Benchmark/Perl/Formance/Plugin/Mem.pm
 lib/Benchmark/Perl/Formance/Plugin/MooseTS.pm

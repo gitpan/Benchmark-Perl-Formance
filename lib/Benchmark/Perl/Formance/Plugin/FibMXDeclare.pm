@@ -1,4 +1,4 @@
-package Benchmark::Perl::Formance::Plugin::Fib;
+package Benchmark::Perl::Formance::Plugin::FibMXDeclare;
 
 # Fibonacci numbers
 
@@ -10,13 +10,14 @@ our $count;
 
 use Benchmark ':hireswallclock';
 
-sub fib
-{
-        my $n = shift;
+use MooseX::Declare;
 
-        $n < 2
-            ? 1
-            : fib($n-1) + fib($n-2);
+class Fib {
+        method fib(Int $n) {
+                $n < 2
+                  ? 1
+                    : $self->fib($n-1) + $self->fib($n-2);
+        }
 }
 
 sub main
@@ -28,7 +29,8 @@ sub main
         $count = 5;
 
         my $result;
-        my $t = timeit $count, sub { $result = fib $goal };
+        my $fib = Fib->new;
+        my $t   = timeit $count, sub { $result = $fib->fib($goal) };
         return {
                 Benchmark => $t,
                 result    => $result,
@@ -42,7 +44,7 @@ __END__
 
 =head1 NAME
 
-Benchmark::Perl::Formance::Plugin::Fib - Stress recursion and function calls
+Benchmark::Perl::Formance::Plugin::FibMXDeclare - Stress recursion and method calls (MooseX::Declare)
 
 =cut
 

@@ -41,10 +41,14 @@ To use another Perl start it via
 
   $ /other/path/to/bin/perl /path/to/benchmark-perlformance
 
+To provide configuration, general and plugin specific, you can use the
+C<-D> option to define key/value pairs:
 
-To provide environment variables (for some plugins) you can do
+  $ benchmark-perlformance -DShootout_fasta_n=5500  [...]
 
-  $ PERLFORMANCE_SHOOTOUT_FASTA_N=5500 benchmark-perlformance [...]
+Plugins usually follow the convention that the options are prefixed
+with the plugin name, like in the example it means the config value
+C<n> used by the plugin C<Shootout::fasta>.
 
 =head1 OPTIONS
 
@@ -62,6 +66,12 @@ prints out a help page.
 
 Use only a particular list of sub benchmarks. The comma-separated list
 refers to Benchmark::Perl::Formance::Plugin::* respectively.
+
+=item --fastmode
+
+If this is set then some plugins try to scale down the stress to take
+less time (with less useful results, of course). Mostly for easier
+development.
 
 =item --verbose
 
@@ -116,6 +126,12 @@ currently does not increase information.
 
 includes all info from Perls %Config hash.
 
+=item -p
+
+includes platform info via Devel::Platform::Info
+
+(Users who want to greet the 80s combine it this way: C<-cccp>. :-)
+
 =item --tapdescription="some description"
 
 When given this will prepend the YAML with a TAP line
@@ -126,6 +142,18 @@ This makes it easier for wrappers to embed the output into TAP which
 otherwise need to differentiate between output (verbose and other) and
 the YAML.
 
+=item --useforks
+
+By setting this you can activate the C<forks> drop-in replacement for
+threads.
+
+See
+L<Benchmark::Perl::Formance::Plugin::Threads|Benchmark::Perl::Formance::Plugin::Threads>.
+
+=item -Dkey=value
+
+With this you can configure plugins by defining key/value pairs.
+
 =back
 
 =head1 ENVIRONMENT VARIABLES
@@ -133,12 +161,6 @@ the YAML.
 There are some options available.
 
 =over 4
-
-=item PERLFORMANCE_TESTMODE_FAST
-
-If this variable is set to 1 then some plugins try to scale down the
-stress to take less time (with stupid results, of course). Mostly for
-easier development.
 
 =item PERLFORMANCE_SALEARN
 
@@ -150,14 +172,6 @@ the path to the "sa-learn" executable.
 See
 L<Benchmark::Perl::Formance::Plugin::Threads|Benchmark::Perl::Formance::Plugin::Threads>. Use
 this many count of threads. Default is 16.
-
-=item PERLFORMANCE_USE_FORKS
-
-If set to true you can activate the C<forks> drop-in replacement for
-threads.
-
-See
-L<Benchmark::Perl::Formance::Plugin::Threads|Benchmark::Perl::Formance::Plugin::Threads>.
 
 =back
 
