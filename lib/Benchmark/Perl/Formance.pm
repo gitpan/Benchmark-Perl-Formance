@@ -13,11 +13,11 @@ use Data::YAML::Writer;
 use Time::HiRes qw(gettimeofday);
 use Devel::Platform::Info;
 use List::Util "max";
-use Data::DPath 'dpathi';
+use Data::DPath 'dpath', 'dpathi';
 
 use vars qw($VERSION @ISA @EXPORT_OK);
 
-$VERSION = '0.11';
+$VERSION = '0.12';
 
 push @ISA, 'Exporter'; @EXPORT_OK = qw(run print_results);
 
@@ -225,7 +225,7 @@ sub find_interesting_result_paths
 
         my @all_keys = ();
 
-        my $benchmarks = dpathi $RESULTS, "//Benchmark";
+        my $benchmarks = dpathi($RESULTS)->isearch("//Benchmark");
 
         while ($benchmarks->isnt_exhausted) {
                 my @keys;
@@ -233,8 +233,7 @@ sub find_interesting_result_paths
                 my $ancestors = $benchmark->isearch ("/::ancestor");
 
                 while ($ancestors->isnt_exhausted) {
-                        my $ancestor = $ancestors->value;
-                        my $key = $ancestor->first_point->{attrs}{key};
+                        my $key = $ancestors->value->first_point->{attrs}{key};
                         push @keys, $key if defined $key;
                 }
                 pop @keys;
@@ -253,8 +252,7 @@ sub print_outstyle_summary
         foreach (@run_plugins) {
                 no strict 'refs';
                 my @resultkeys = split(/\./);
-                my $str = "\$RESULTS->{results}{".join("}{", @resultkeys)."}{Benchmark}[0]";
-                my $res = eval $str;
+                my ($res) = dpath("/results/".join("/", map { qq("$_") } @resultkeys)."/Benchmark/*[0]")->match($RESULTS);
                 print sprintf("%-${len}s : %f\n", $_, ($res || 0));
         }
 }
