@@ -5,6 +5,14 @@ package Benchmark::Perl::Formance::Plugin::Prime;
 use strict;
 use warnings;
 
+our $VERSION = "0.001";
+
+#############################################################
+#                                                           #
+# Benchmark Code ahead - Don't touch without strong reason! #
+#                                                           #
+#############################################################
+
 our $goal;
 our $count;
 
@@ -14,7 +22,8 @@ sub math_primality
 {
         my ($options) = @_;
 
-        eval "use Math::Primality 'next_prime'";
+        eval "use Math::Primality 'next_prime'"; ## no critic
+
         if ($@) {
                 print STDERR "# ".$@ if $options->{verbose} > 2;
                 return { failed => "use Math::Primality failed" };
@@ -36,7 +45,7 @@ sub crypt_primes
 {
         my ($options) = @_;
 
-        eval "use Crypt::Primes 'maurer'";
+        eval "use Crypt::Primes 'maurer'"; ## no critic
         if ($@) {
                 print STDERR "# ".$@ if $options->{verbose} > 2;
                 return { failed => "use Crypt::Primes failed" };
@@ -45,7 +54,6 @@ sub crypt_primes
         my $t;
         my $result;
         my $bitgoal = int($goal * 3.36); # bitness in about same size order as int length in math_primality
-        print STDERR "bitgoal: $bitgoal\n";
         $t = timeit $count, sub { $result = maurer(Size => $bitgoal) };
         return {
                 Benchmark => $t,

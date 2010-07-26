@@ -15,6 +15,14 @@ package Benchmark::Perl::Formance::Plugin::Shootout::regexdna;
 use strict;
 use warnings;
 
+our $VERSION = "0.001";
+
+#############################################################
+#                                                           #
+# Benchmark Code ahead - Don't touch without strong reason! #
+#                                                           #
+#############################################################
+
 use Benchmark::Perl::Formance::Cargo;
 use File::ShareDir qw(module_dir);
 use Benchmark ':hireswallclock';
@@ -25,12 +33,12 @@ sub run
 
         my $srcdir = module_dir('Benchmark::Perl::Formance::Cargo')."/Shootout";
         my $srcfile = "$srcdir/$infile";
-        open INFILE, "<", $srcfile or die "Cannot read $srcfile";
+        open my $INFILE, "<", $srcfile or die "Cannot read $srcfile";
 
-        my $l_file  = -s INFILE;
-        my $content; read INFILE, $content, $l_file;
+        my $l_file  = -s $INFILE;
+        my $content; read $INFILE, $content, $l_file;
         # this is significantly faster than using <> in this case
-        close INFILE;
+        close $INFILE;
 
         $content =~ s/^>.*//mg;
         $content =~ tr/\n//d;

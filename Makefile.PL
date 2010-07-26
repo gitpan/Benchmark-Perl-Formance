@@ -7,18 +7,18 @@ all_from       'lib/Benchmark/Perl/Formance.pm';
 # general dependencies
 requires 'Benchmark';
 requires 'Time::HiRes';
+requires 'Devel::Size';
 requires 'File::ShareDir';
 requires 'Data::YAML::Writer';
 requires 'Data::Structure::Util';
 requires 'File::Copy::Recursive';
 requires 'Devel::Platform::Info';
-requires 'Benchmark::Perl::Formance::Cargo';
+requires 'Benchmark::Perl::Formance::Cargo' => '0.02';
 requires 'Data::DPath' => '0.38';
 
 test_requires 'Data::YAML::Reader';
 
-recommends 'forks'; # forks sucks in my env for some reason currently I don't know why
-
+recommends 'forks';
 
 # SpamAssassin
 recommends 'DB_File';
@@ -33,12 +33,13 @@ recommends 'MooseX::Declare';
 recommends 'Moose' => '0.98';
 recommends 'Mouse';
 
-# Rx
+# RxCmp
 recommends 'POSIX::Regex';
 recommends 're::engine::Lua';
 recommends 're::engine::LPEG';
 recommends 're::engine::Plan9';
 recommends 're::engine::Oniguruma';
+recommends 're::engine::RE2';
 
 # Shootout
 recommends 'Math::GMP';
@@ -62,13 +63,15 @@ recommends 'Math::Primality';
 
 # DPath
 recommends 'Data::DPath';
-recommends 'Devel::Size';
 recommends 'Clone';
 
 # P6STD
 recommends 'Text::Balanced';
 recommends 'YAML::XS';
 recommends 'Encode';
+
+# PerlCritic
+recommends 'Perl::Critic';
 
 install_script('script/benchmark-perlformance');
 

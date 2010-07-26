@@ -14,16 +14,60 @@ use Time::HiRes qw(gettimeofday);
 use Devel::Platform::Info;
 use List::Util "max";
 use Data::DPath 'dpath', 'dpathi';
+use File::Find;
+use Storable "fd_retrieve", "store_fd";
 
-use vars qw($VERSION @ISA @EXPORT_OK);
-
-$VERSION = '0.12';
-
-push @ISA, 'Exporter'; @EXPORT_OK = qw(run print_results);
+our $VERSION = '0.20';
 
 # comma separated list of default plugins
-my $DEFAULT_PLUGINS = 'Rx,RxCmp,Fib,FibOO,FibMoose,FibMouse,SpamAssassin,Shootout,MooseTS,RegexpCommonTS';#,Threads
-my $DEFAULT_INDENT  = 0;
+my $DEFAULT_PLUGINS = join ",", qw(DPath
+                                   Fib
+                                   FibOO
+                                   Mem
+                                   Prime
+                                   Rx
+                                   Shootout::fasta
+                                   Shootout::regexdna
+                                   Shootout::binarytrees
+                                   Shootout::revcomp
+                                   Shootout::nbody
+                                   Shootout::spectralnorm
+                                 );
+
+my $ALL_PLUGINS = join ",", qw(DPath
+                               Fib
+                               FibMoose
+                               FibMouse
+                               FibMXDeclare
+                               FibOO
+                               Mem
+                               MooseTS
+                               P6STD
+                               PerlCritic
+                               Prime
+                               RegexpCommonTS
+                               Rx
+                               RxCmp
+                               Shootout::binarytrees
+                               Shootout::fannkuch
+                               Shootout::fasta
+                               Shootout::knucleotide
+                               Shootout::mandelbrot
+                               Shootout::nbody
+                               Shootout::pidigits
+                               Shootout::regexdna
+                               Shootout::revcomp
+                               Shootout::spectralnorm
+                               SpamAssassin
+                               Threads
+                               ThreadsShared
+                             );
+
+our $DEFAULT_INDENT          = 0;
+
+our $PROC_RANDOMIZE_VA_SPACE = "/proc/sys/kernel/randomize_va_space";
+our $PROC_DROP_CACHES        = "/proc/sys/vm/drop_caches";
+our $SYS_CPB                 = "/sys/devices/system/cpu/cpu0/cpufreq/cpb";
 
 my @run_plugins;
 
@@ -61,6 +105,50 @@ sub new {
         bless {}, shift;
 }
 
+sub load_all_plugins
+{
+        my $path = __FILE__;
+        $path =~ s,\.pmc?$,/Plugin,;
+
+        my %all_plugins;
+        finddepth ({ no_chdir => 1,
+                     follow   => 1,
+                     wanted   => sub { no strict 'refs';
+                                       my $fullname = $File::Find::fullname;
+                                       my $plugin   = $File::Find::name;
+                                       $plugin      =~ s,^$path/*,,;
+                                       $plugin      =~ s,/,::,;
+                                       $plugin      =~ s,\.pmc?$,,;
+
+                                       my $module = "Benchmark::Perl::Formance::Plugin::$plugin";
+                                       # eval { require $fullname };
+                                       eval "use $module"; ## no critic
+                                       my $version = $@ ? "~" : ${$module."::VERSION"};
+                                       $all_plugins{$plugin} = $version
+                                         if -f $fullname && $fullname =~ /\.pmc?$/;
+                               },
+                   },
+                   $path);
+        return %all_plugins;
+}
+
+sub print_version
+{
+        my ($self) = @_;
+
+        if ($self->{options}{verbose})
+        {
+                print "Benchmark::Perl::Formance version $VERSION\n";
+                print "Plugins:\n";
+                my %plugins = load_all_plugins;
+                print "  (v$plugins{$_}) $_\n" foreach sort keys %plugins;
+        }
+        else
+        {
+                print $VERSION, "\n";
+        }
+}
+
 sub usage
 {
         print 'benchmark-perlformance - Frontend for Benchmark::Perl::Formance
@@ -90,6 +178,115 @@ For more details see
 ';
 }
 
+sub set_proc
+{
+        my ($self, $file, $value) = @_;
+
+        if (! -e $file) {
+                print STDERR "# Could not find $file\n" if $self->{options}{verbose} >= 4;
+                return undef;
+        }
+        if (not defined $value) {
+                print STDERR "# No value given\n" if $self->{options}{verbose} >= 4;
+                return undef;
+        }
+
+        my $orig_value;
+        if (open (my $PROCFILE, "<", $file)) {
+                local $/ = undef;
+                $orig_value = <$PROCFILE>;
+                close $PROCFILE;
+        } else {
+                print STDERR "# Could not read old value from $file\n" if $self->{options}{verbose} >= 4;
+        }
+        chomp $orig_value if defined $orig_value;
+
+        if (open (my $PROCFILE, ">", $file)) {
+                print $PROCFILE $value;
+                close $PROCFILE;
+        } else {
+                print STDERR "# Could not write $value into $file\n" if $self->{options}{verbose} >= 4;
+        }
+
+        return $orig_value;
+}
+
+sub do_disk_sync {
+        my ($self) = @_;
+        system("sync");
+}
+
+# Try to stabilize a system.
+# - Classical disk sync
+# - Drop caches (http://linux-mm.org/Drop_Caches)
+# - Disable address space randomization (ASLR) (https://wiki.ubuntu.com/Security/Features)
+# - Disable "Core Performance Boost" (http://lkml.org/lkml/2010/3/22/333)
+sub prepare_stable_system
+{
+        my ($self) = @_;
+
+        my $orig_values;
+        if ($^O eq "linux") {
+                $orig_values->{aslr} = $self->set_proc ($PROC_RANDOMIZE_VA_SPACE, 0);
+                $orig_values->{cpb}  = $self->set_proc ($SYS_CPB, 0);
+                $self->do_disk_sync;
+                $self->set_proc ($PROC_DROP_CACHES, 1);
+        }
+        return $orig_values;
+}
+
+sub restore_stable_system
+{
+        my ($self, $orig_values) = @_;
+        if ($^O eq "linux") {
+                $self->set_proc($PROC_RANDOMIZE_VA_SPACE, $orig_values->{aslr}) if defined $orig_values->{aslr};
+                $self->set_proc($SYS_CPB,                 $orig_values->{cpb} ) if defined $orig_values->{cpb};
+        }
+}
+
+sub run_plugin
+{
+        my ($self, $pluginname) = @_;
+
+        no strict 'refs';       ## no critic
+        print STDERR "# Run $pluginname...\n" if $self->{options}{verbose} >= 2;
+        my $res;
+        eval {
+                use IO::Handle;
+                pipe(PARENT_RDR, CHILD_WTR);
+                CHILD_WTR->autoflush(1);
+                my $pid = open(my $PLUGIN, "-|");
+                if ($pid == 0) {
+                        # run in child process
+                        close PARENT_RDR;
+                        eval "use Benchmark::Perl::Formance::Plugin::$pluginname"; ## no critic
+                        if ($@) {
+                                print STDERR "# Skip plugin '$pluginname'" if $self->{options}{verbose};
+                                print STDERR ":$@"                if $self->{options}{verbose} >= 2;
+                                print STDERR "\n"                 if $self->{options}{verbose};
+                                exit 0;
+                        }
+                        my $orig_values = $self->prepare_stable_system;
+                        $res = &{"Benchmark::Perl::Formance::Plugin::${pluginname}::main"}($self->{options});
+                        $self->restore_stable_system($orig_values);
+                        store_fd($res, \*CHILD_WTR);
+                        close CHILD_WTR;
+                        exit 0;
+                }
+                close CHILD_WTR;
+                $res = fd_retrieve(\*PARENT_RDR);
+                close PARENT_RDR;
+                $res->{PLUGIN_VERSION} = ${"Benchmark::Perl::Formance::Plugin::${pluginname}::VERSION"};
+        };
+        if ($@) {
+                $res = {
+                        failed => "Plugin $pluginname failed",
+                        ($self->{options}{verbose} > 3 ? ( error  => $@ ) : ()),
+                       }
+        }
+        return $res;
+}
+
 sub run {
         my ($self) = @_;
 
@@ -98,6 +295,7 @@ sub run {
         my $outstyle       = "summary";
         my $platforminfo   = 0;
         my $verbose        = 0;
+        my $version        = 0;
         my $fastmode       = 0;
         my $useforks       = 0;
         my $quiet          = 0;
@@ -115,15 +313,13 @@ sub run {
                              "verbose|v+"       => \$verbose,
                              "outstyle=s"       => \$outstyle,
                              "fastmode"         => \$fastmode,
+                             "version"          => \$version,
                              "useforks"         => \$useforks,
                              "showconfig|c+"    => \$showconfig,
                              "platforminfo|p"   => \$platforminfo,
                              "tapdescription=s" => \$tapdescription,
                              "D=s%"             => \$D,
                             );
-        do { usage; exit  0 } if $help;
-        do { usage; exit -1 } if not $ok;
-
         # fill options
         $self->{options} = {
                             help           => $help,
@@ -131,6 +327,7 @@ sub run {
                             verbose        => $verbose,
                             outstyle       => $outstyle,
                             fastmode       => $fastmode,
+                            useforks       => $useforks,
                             showconfig     => $showconfig,
                             platforminfo   => $platforminfo,
                             plugins        => $plugins,
@@ -139,43 +336,29 @@ sub run {
                             D              => $D,
                            };
 
+        do { $self->print_version; exit  0 } if $version;
+        do { usage;                exit  0 } if $help;
+        do { usage;                exit -1 } if not $ok;
+
         # use forks if requested
         if ($useforks) {
-                eval "use forks";
+                eval "use forks"; ## no critic
                 $useforks = 0 if $@;
                 print STDERR "# use forks " . ($@ ? "failed" : "") . "\n" if $verbose;
         }
 
-        # check plugins
-        my @plugins = grep /\w/, split '\s*,\s*', $plugins;
-        @run_plugins = grep {
-                eval "use Benchmark::Perl::Formance::Plugin::$_";
-                if ($@) {
-                        print STDERR "# Skip plugin '$_'" if $verbose;
-                        print STDERR ":$@"                if $verbose >= 2;
-                        print STDERR "\n"                 if $verbose;
-                }
-                not $@;
-        } @plugins;
+        # static list because dynamic require influences runtimes
+        $plugins = $ALL_PLUGINS if $plugins eq "ALL";
 
         # run plugins
         my $before = gettimeofday();
         my %RESULTS;
-        foreach (@run_plugins) {
-                no strict 'refs';
-                my @resultkeys = split(/::/);
-                print STDERR "# Run $_...\n" if $verbose;
-                my $res;
-                eval {
-                        $res = &{"Benchmark::Perl::Formance::Plugin::${_}::main"}($self->{options});
-                };
-                if ($@) {
-                        $res = {
-                                failed => "Plugin $_ failed",
-                                error  => $@,
-                               }
-                }
-                eval "\$RESULTS{results}{".join("}{", @resultkeys)."} = \$res";
+        my @plugins = grep /\w/, split '\s*,\s*', $plugins;
+        foreach (@plugins)
+        {
+                my @resultkeys = split(/::/, $_);
+                my $res = $self->run_plugin($_);
+                eval "\$RESULTS{results}{".join("}{", @resultkeys)."} = \$res"; ## no critic
         }
         my $after  = gettimeofday();
         $RESULTS{perlformance}{overall_runtime}   = $after - $before;
@@ -249,8 +432,8 @@ sub print_outstyle_summary
         my @run_plugins = $self->find_interesting_result_paths($RESULTS);
         my $len = max map { length } @run_plugins;
 
-        foreach (@run_plugins) {
-                no strict 'refs';
+        foreach (sort @run_plugins) {
+                no strict 'refs'; ## no critic
                 my @resultkeys = split(/\./);
                 my ($res) = dpath("/results/".join("/", map { qq("$_") } @resultkeys)."/Benchmark/*[0]")->match($RESULTS);
                 print sprintf("%-${len}s : %f\n", $_, ($res || 0));

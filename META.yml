@@ -26,7 +26,6 @@ recommends:
   Data::DPath: 0
   DateTime::Calendar::Mayan: 0
   Declare::Constraints::Simple: 0
-  Devel::Size: 0
   Encode: 0
   HTML::Parser: 0
   HTTP::Headers: 0
@@ -43,6 +42,7 @@ recommends:
   NetAddr::IP: 0
   POSIX::Regex: 0
   Params::Coerce: 0
+  Perl::Critic: 0
   Regexp::Common: 0
   Test::Aggregate::Nested: 0
   Test::Output: 0
@@ -54,13 +54,15 @@ recommends:
   re::engine::Lua: 0
   re::engine::Oniguruma: 0
   re::engine::Plan9: 0
+  re::engine::RE2: 0
 requires:
   Benchmark: 0
-  Benchmark::Perl::Formance::Cargo: 0
+  Benchmark::Perl::Formance::Cargo: 0.02
   Data::DPath: 0.38
   Data::Structure::Util: 0
   Data::YAML::Writer: 0
   Devel::Platform::Info: 0
+  Devel::Size: 0
   File::Copy::Recursive: 0
   File::ShareDir: 0
   Time::HiRes: 0
@@ -69,4 +71,4 @@ resources:
   bugtracker: http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Benchmark-Perl-Formance
   license: http://dev.perl.org/licenses/
   repository: git://github.com/renormalist/Benchmark-Perl-Formance.git
-version: 0.12
+version: 0.20

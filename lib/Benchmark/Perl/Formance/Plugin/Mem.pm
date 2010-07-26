@@ -1,30 +1,68 @@
 package Benchmark::Perl::Formance::Plugin::Mem;
 
-use warnings;
 use strict;
+use warnings;
+
+our $VERSION = "0.001";
+
+#############################################################
+#                                                           #
+# Benchmark Code ahead - Don't touch without strong reason! #
+#                                                           #
+#############################################################
 
 our $goal;
 our $count;
 
 use Benchmark ':hireswallclock';
+use Devel::Size 'total_size';
 
-sub lots_of_malloc
+my @stuff;
+
+sub allocate
 {
-        my $n = shift;
-        sleep 1;
+        my ($options, $goal, $count) = @_;
+
+        my $t = timeit $count, sub {
+                my @stuff1;
+                $#stuff1 = $goal;
+        };
+        return {
+                Benchmark  => $t,
+                goal       => $goal,
+                count      => $count,
+               };
 }
 
-sub main {
+sub copy
+{
+        my ($options, $goal, $count) = @_;
+
+        my $t = timeit $count, sub {
+                my @copy = @stuff;
+        };
+        return {
+                Benchmark  => $t,
+                goal       => $goal,
+                count      => $count,
+               };
+}
+
+sub main
+{
         my ($options) = @_;
 
-        $goal  = $options->{fastmode} ? 15 : 35;
-        $count = 5;
+        $goal  = $options->{fastmode} ? 2_000_000 : 15_000_000;
+        $count = $options->{fastmode} ? 5 : 20;
 
-        my $t = timeit $count, sub { lots_of_malloc($goal) };
+        $#stuff = $goal;
+        my $size = total_size(\@stuff);
+
         return {
-                Benchmark => $t,
-                count     => $count,
-                not_yet => "implemented, stay tuned...",
+                total_size_bytes        => $size,
+                copy                    => copy     ($options, $goal, $count),
+                allocate                => allocate ($options, $goal, $count),
+                # matrix_multiply_fixsize => matrix_multiply_fixsize ($options, $goal, $count),
                };
 }
 

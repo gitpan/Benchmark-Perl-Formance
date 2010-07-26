@@ -1,7 +1,15 @@
 package Benchmark::Perl::Formance::Plugin::RegexpCommonTS;
 
-use warnings;
 use strict;
+use warnings;
+
+our $VERSION = "0.001";
+
+#############################################################
+#                                                           #
+# Benchmark Code ahead - Don't touch without strong reason! #
+#                                                           #
+#############################################################
 
 use File::Temp qw(tempfile tempdir);
 use File::Copy::Recursive qw(dircopy);
@@ -17,7 +25,7 @@ use Benchmark ':hireswallclock';
 sub prepare {
         my ($options) = @_;
 
-        my $dstdir = tempdir( CLEANUP => 0 );
+        my $dstdir = tempdir( CLEANUP => 1 );
         my $srcdir = module_dir('Benchmark::Perl::Formance::Cargo')."/RegexpCommonTS";
 
         print STDERR "# Prepare cargo RegexpCommon testsuite in $dstdir ...\n" if $options->{verbose} >= 3;

@@ -23,6 +23,7 @@ lib/Benchmark/Perl/Formance/Plugin/FibOO.pm
 lib/Benchmark/Perl/Formance/Plugin/Mem.pm
 lib/Benchmark/Perl/Formance/Plugin/MooseTS.pm
 lib/Benchmark/Perl/Formance/Plugin/P6STD.pm
+lib/Benchmark/Perl/Formance/Plugin/PerlCritic.pm
 lib/Benchmark/Perl/Formance/Plugin/Prime.pm
 lib/Benchmark/Perl/Formance/Plugin/RegexpCommonTS.pm
 lib/Benchmark/Perl/Formance/Plugin/Rx.pm
@@ -41,6 +42,7 @@ lib/Benchmark/Perl/Formance/Plugin/Shootout/spectralnorm.pm
 lib/Benchmark/Perl/Formance/Plugin/Skeleton.pm
 lib/Benchmark/Perl/Formance/Plugin/SpamAssassin.pm
 lib/Benchmark/Perl/Formance/Plugin/Threads.pm
+lib/Benchmark/Perl/Formance/Plugin/ThreadsShared.pm
 Makefile.PL
 MANIFEST			This list of files
 MANIFEST.SKIP

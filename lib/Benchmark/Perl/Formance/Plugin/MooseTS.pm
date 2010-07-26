@@ -3,6 +3,14 @@ package Benchmark::Perl::Formance::Plugin::MooseTS;
 use warnings;
 use strict;
 
+our $VERSION = "0.001";
+
+#############################################################
+#                                                           #
+# Benchmark Code ahead - Don't touch without strong reason! #
+#                                                           #
+#############################################################
+
 use File::Temp qw(tempfile tempdir);
 use File::Copy::Recursive qw(dircopy);
 use File::ShareDir qw(module_dir);
@@ -17,7 +25,7 @@ use Benchmark ':hireswallclock';
 sub prepare {
         my ($options) = @_;
 
-        my $dstdir = tempdir( CLEANUP => 0 );
+        my $dstdir = tempdir( CLEANUP => 1 );
         my $srcdir = module_dir('Benchmark::Perl::Formance::Cargo')."/MooseTS";
 
         print STDERR "# Prepare cargo Moose testsuite in $dstdir ...\n" if $options->{verbose} >= 3;

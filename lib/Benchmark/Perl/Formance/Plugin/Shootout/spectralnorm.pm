@@ -12,6 +12,14 @@ package Benchmark::Perl::Formance::Plugin::Shootout::spectralnorm;
 use strict;
 use warnings;
 
+our $VERSION = "0.001";
+
+#############################################################
+#                                                           #
+# Benchmark Code ahead - Don't touch without strong reason! #
+#                                                           #
+#############################################################
+
 use IO::Select;
 use Benchmark ':hireswallclock';
 
@@ -78,7 +86,7 @@ sub multiplyAtAv {
 }
 
 sub num_cpus {
-  open my $fh, '</proc/cpuinfo' or return; # '
+  open my $fh, '<', '/proc/cpuinfo' or return; # '
   my $cpus;
   while (<$fh>) {
           $cpus ++ if /^processor[\s]+:/; # 0][]0]; # for emacs cperl-mode indent bug

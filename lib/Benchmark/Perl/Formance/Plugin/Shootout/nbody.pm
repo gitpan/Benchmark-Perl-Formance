@@ -15,6 +15,14 @@ package Benchmark::Perl::Formance::Plugin::Shootout::nbody;
 use strict;
 use warnings;
 
+our $VERSION = "0.001";
+
+#############################################################
+#                                                           #
+# Benchmark Code ahead - Don't touch without strong reason! #
+#                                                           #
+#############################################################
+
 use constant PI            => 3.141592653589793;
 use constant SOLAR_MASS    => (4 * PI * PI);
 use constant DAYS_PER_YEAR => 365.24;
@@ -25,7 +33,7 @@ use Benchmark ':hireswallclock';
 #  Almost every iteration is a range, so I keep the last index rather than a count.
 my (@xs, @ys, @zs, @vxs, @vys, @vzs, @mass, $last);
 
-sub advance($)
+sub advance($) ## no critic
 {
   my ($dt) = @_;
   my ($mm, $mm2, $j, $dx, $dy, $dz, $distance, $mag);
@@ -59,10 +67,10 @@ sub advance($)
 
 sub energy
 {
-  my ($e, $i, $dx, $dy, $dz, $distance);
+  my ($e, $dx, $dy, $dz, $distance);
 
   $e = 0.0;
-  for $i (0..$last) {
+  for my $i (0..$last) {
     $e += 0.5 * $mass[$i] *
           ($vxs[$i] * $vxs[$i] + $vys[$i] * $vys[$i] + $vzs[$i] * $vzs[$i]);
     for ($i + 1..$last) {
