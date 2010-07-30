@@ -62,7 +62,7 @@ sub threadstorm
                 threadcount => $threadcount,
                 result      => $ret2,
                 expect      => $expect2,
-                useforks => ($options->{useforks} || 0),
+                useforks    => ($options->{useforks} || 0),
                };
 }
 
@@ -85,9 +85,8 @@ Benchmark::Perl::Formance::Plugin::Threads - Stress threading
 
 =head1 SYNOPSIS
 
-Run it as any other plugin.
-You can define how many threads should maximally be started.
-Default is 16.
+Run it as any other plugin. You can define how many threads should
+maximally be started. Default is 100.
 
   $ perl-formance --plugins=Threads -DThreads_threadcount=64
 

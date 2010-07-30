@@ -48,7 +48,6 @@ sub run_thread_storm_shared
                 $_->join;
         }
 
-        #print STDERR "#  == ".$result[-1]."\n" if $options->{verbose} >= 3;
         return $result[-1];
 }
 
@@ -89,15 +88,14 @@ __END__
 
 =head1 NAME
 
-Benchmark::Perl::Formance::Plugin::Threads - Stress threading
+Benchmark::Perl::Formance::Plugin::ThreadsShared - Stress shared threading
 
 =head1 SYNOPSIS
 
-Run it as any other plugin.
-You can define how many threads should maximally be started.
-Default is 16.
+Run it as any other plugin. You can define how many threads should
+maximally be started. Default is 100.
 
-  $ perl-formance --plugins=Threads -DThreads_threadcount=64
+  $ perl-formance --plugins=ThreadsShared -DThreads_threadcount=64
 
 =head1 BUGS
 

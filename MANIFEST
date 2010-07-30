@@ -20,6 +20,7 @@ lib/Benchmark/Perl/Formance/Plugin/FibMoose.pm
 lib/Benchmark/Perl/Formance/Plugin/FibMouse.pm
 lib/Benchmark/Perl/Formance/Plugin/FibMXDeclare.pm
 lib/Benchmark/Perl/Formance/Plugin/FibOO.pm
+lib/Benchmark/Perl/Formance/Plugin/Incubator.pm
 lib/Benchmark/Perl/Formance/Plugin/Mem.pm
 lib/Benchmark/Perl/Formance/Plugin/MooseTS.pm
 lib/Benchmark/Perl/Formance/Plugin/P6STD.pm

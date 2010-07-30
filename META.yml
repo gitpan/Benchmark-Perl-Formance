@@ -44,7 +44,6 @@ recommends:
   Params::Coerce: 0
   Perl::Critic: 0
   Regexp::Common: 0
-  Test::Aggregate::Nested: 0
   Test::Output: 0
   Text::Balanced: 0
   URI: 0
@@ -58,7 +57,7 @@ recommends:
 requires:
   Benchmark: 0
   Benchmark::Perl::Formance::Cargo: 0.02
-  Data::DPath: 0.38
+  Data::DPath: 0.40
   Data::Structure::Util: 0
   Data::YAML::Writer: 0
   Devel::Platform::Info: 0
@@ -71,4 +70,4 @@ resources:
   bugtracker: http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Benchmark-Perl-Formance
   license: http://dev.perl.org/licenses/
   repository: git://github.com/renormalist/Benchmark-Perl-Formance.git
-version: 0.20
+version: 0.21

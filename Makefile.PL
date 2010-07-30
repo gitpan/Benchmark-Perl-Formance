@@ -14,7 +14,7 @@ requires 'Data::Structure::Util';
 requires 'File::Copy::Recursive';
 requires 'Devel::Platform::Info';
 requires 'Benchmark::Perl::Formance::Cargo' => '0.02';
-requires 'Data::DPath' => '0.38';
+requires 'Data::DPath' => '0.40';
 
 test_requires 'Data::YAML::Reader';
 
@@ -45,7 +45,7 @@ recommends 're::engine::RE2';
 recommends 'Math::GMP';
 
 # MooseTS
-recommends 'Test::Aggregate::Nested';
+#recommends 'Test::Aggregate::Nested';
 recommends 'DateTime::Calendar::Mayan';
 recommends 'Regexp::Common';
 recommends 'Locale::US';
