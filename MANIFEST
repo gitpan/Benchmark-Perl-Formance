@@ -52,3 +52,4 @@ README
 script/benchmark-perlformance
 t/00-load.t
 t/basic.t
+t/samplerun.t
