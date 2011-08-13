@@ -16,8 +16,9 @@ use List::Util "max";
 use Data::DPath 'dpath', 'dpathi';
 use File::Find;
 use Storable "fd_retrieve", "store_fd";
+use Sys::Hostname;
 
-our $VERSION = '0.22';
+our $VERSION = '0.23';
 
 # comma separated list of default plugins
 my $DEFAULT_PLUGINS = join ",", qw(DPath
@@ -248,6 +249,7 @@ sub run_plugin
 {
         my ($self, $pluginname) = @_;
 
+        $pluginname =~ s,\.,::,g;
         no strict 'refs';       ## no critic
         print STDERR "# Run $pluginname...\n" if $self->{options}{verbose} >= 2;
         my $res;
@@ -255,7 +257,7 @@ sub run_plugin
                 use IO::Handle;
                 pipe(PARENT_RDR, CHILD_WTR);
                 CHILD_WTR->autoflush(1);
-                my $pid = open(my $PLUGIN, "-|");
+                my $pid = open(my $PLUGIN, "-|"); # implicit fork
                 if ($pid == 0) {
                         # run in child process
                         close PARENT_RDR;
@@ -287,6 +289,70 @@ sub run_plugin
         return $res;
 }
 
+# That's specific to the Tapper wrapper around
+# Benchmark::Perl::Formance and should be replaced
+# with something generic
+sub _perl_gitversion {
+        my $perlpath         = "$^X";
+        my $perl_gitversion  = "$perlpath-gitversion";
+
+        if (-x $perl_gitversion) {
+                my $gitversion = qx!$perl_gitversion! ;
+                chomp $gitversion;
+                return $gitversion;
+        }
+}
+
+sub _get_hostname {
+        my $host = "unknown-hostname";
+        eval { $host = hostname };
+        $host = "perl64.org" if $host eq "h1891504"; # special case for PerlFormance.Net Æsthetics
+        return $host;
+}
+
+sub generate_codespeed_data
+{
+        my ($self, $RESULTS) = @_;
+
+        my @codespeed_entries = ();
+
+        my @run_plugins = $self->find_interesting_result_paths($RESULTS);
+        my $len = max map { length } @run_plugins;
+
+        my $codespeed_exe_suffix  = $self->{options}{cs_executable_suffix}  || $ENV{CODESPEED_EXE_SUFFIX}  || "";
+        my $codespeed_exe         = $self->{options}{cs_executable}         || sprintf("perl-%s.%s.%s%s",
+                                                                                       $Config{PERL_REVISION},
+                                                                                       $Config{PERL_VERSION},
+                                                                                       $Config{PERL_SUBVERSION},
+                                                                                       $codespeed_exe_suffix,
+                                                                                      );
+        my $codespeed_project     = $self->{options}{cs_project}            || $ENV{CODESPEED_PROJECT}     || "perl";
+        my $codespeed_branch      = $self->{options}{cs_branch}             || $ENV{CODESPEED_BRANCH}      || "default";
+        my $codespeed_commitid    = $self->{options}{cs_commitid}           || $ENV{CODESPEED_COMMITID}    || $Config{git_commit_id} || _perl_gitversion || "no-commit";
+        my $codespeed_environment = $self->{options}{cs_environment}        || $ENV{CODESPEED_ENVIRONMENT} || _get_hostname || "no-env";
+        my %codespeed_meta = (
+                              executable  => $codespeed_exe,
+                              project     => $codespeed_project,
+                              branch      => $codespeed_branch,
+                              commitid    => $codespeed_commitid,
+                              environment => $codespeed_environment,
+                             );
+
+        foreach (sort @run_plugins) {
+                no strict 'refs'; ## no critic
+                my @resultkeys = split(/\./);
+                my ($res) = dpath("/results/".join("/", map { qq("$_") } @resultkeys)."/Benchmark/*[0]")->match($RESULTS);
+                my $benchmark =  $self->{options}{fastmode} ? "(F)$_" : $_ ;
+                push @codespeed_entries, {
+                                          # order matters
+                                          %codespeed_meta,
+                                          benchmark => $benchmark,
+                                          result_value => ($res || 0),
+                                         };
+        }
+        return \@codespeed_entries;
+}
+
 sub run {
         my ($self) = @_;
 
@@ -294,6 +360,13 @@ sub run {
         my $showconfig     = 0;
         my $outstyle       = "summary";
         my $platforminfo   = 0;
+        my $codespeed      = 0;
+        my $cs_executable_suffix = "";
+        my $cs_executable        = "";
+        my $cs_project           = "";
+        my $cs_branch            = "";
+        my $cs_commitid          = "";
+        my $cs_environment       = "";
         my $verbose        = 0;
         my $version        = 0;
         my $fastmode       = 0;
@@ -317,6 +390,13 @@ sub run {
                              "useforks"         => \$useforks,
                              "showconfig|c+"    => \$showconfig,
                              "platforminfo|p"   => \$platforminfo,
+                             "codespeed"        => \$codespeed,
+                             "cs-executable-suffix=s" => \$cs_executable_suffix,
+                             "cs-executable=s"  => \$cs_executable,
+                             "cs-project=s"     => \$cs_project,
+                             "cs-branch=s"      => \$cs_branch,
+                             "cs-commitid=s"    => \$cs_commitid,
+                             "cs-environment=s" => \$cs_environment,
                              "tapdescription=s" => \$tapdescription,
                              "D=s%"             => \$D,
                             );
@@ -330,6 +410,13 @@ sub run {
                             useforks       => $useforks,
                             showconfig     => $showconfig,
                             platforminfo   => $platforminfo,
+                            codespeed      => $codespeed,
+                            cs_executable_suffix => $cs_executable_suffix,
+                            cs_executable        => $cs_executable,
+                            cs_project           => $cs_project,
+                            cs_branch            => $cs_branch,
+                            cs_commitid          => $cs_commitid,
+                            cs_environment       => $cs_environment,
                             plugins        => $plugins,
                             tapdescription => $tapdescription,
                             indent         => $indent,
@@ -356,7 +443,7 @@ sub run {
         my @plugins = grep /\w/, split '\s*,\s*', $plugins;
         foreach (@plugins)
         {
-                my @resultkeys = split(/::/, $_);
+                my @resultkeys = split(qr/::|\./, $_);
                 my $res = $self->run_plugin($_);
                 eval "\$RESULTS{results}{".join("}{", @resultkeys)."} = \$res"; ## no critic
         }
@@ -377,10 +464,17 @@ sub run {
         }
 
         # Perl Config
+        my $platform_info = Devel::Platform::Info->new->get_info;
         if ($platforminfo)
         {
-                $RESULTS{platform_info} = Devel::Platform::Info->new->get_info;
+                $RESULTS{platform_info} = $platform_info;
                 delete $RESULTS{platform_info}{source}; # this currently breaks the simplified YAMLish
+        }
+
+        # Codespeed data blocks
+        if ($codespeed)
+        {
+                $RESULTS{codespeed} = $self->generate_codespeed_data(\%RESULTS, $platform_info);
         }
 
         unbless (\%RESULTS);
