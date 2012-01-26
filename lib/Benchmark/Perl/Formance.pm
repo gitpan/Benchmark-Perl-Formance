@@ -18,7 +18,7 @@ use File::Find;
 use Storable "fd_retrieve", "store_fd";
 use Sys::Hostname;
 
-our $VERSION = '0.25';
+our $VERSION = '0.26';
 
 # comma separated list of default plugins
 my $DEFAULT_PLUGINS = join ",", qw(DPath
@@ -35,6 +35,8 @@ my $DEFAULT_PLUGINS = join ",", qw(DPath
                                    Shootout::spectralnorm
                                  );
 
+# non-working:
+#   MooseTS
 my $ALL_PLUGINS = join ",", qw(DPath
                                Fib
                                FibMoose
@@ -42,7 +44,6 @@ my $ALL_PLUGINS = join ",", qw(DPath
                                FibMXDeclare
                                FibOO
                                Mem
-                               MooseTS
                                P6STD
                                PerlCritic
                                Prime

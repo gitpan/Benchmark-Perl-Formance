@@ -15,6 +15,7 @@ requires 'File::Copy::Recursive';
 requires 'Devel::Platform::Info';
 requires 'Benchmark::Perl::Formance::Cargo' => '0.02';
 requires 'Data::DPath' => '0.40';
+requires 'Getopt::Long' => '2.38';
 
 test_requires 'Data::YAML::Reader';
 
