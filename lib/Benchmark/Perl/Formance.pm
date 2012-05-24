@@ -18,7 +18,7 @@ use File::Find;
 use Storable "fd_retrieve", "store_fd";
 use Sys::Hostname;
 
-our $VERSION = '0.26';
+our $VERSION = '0.27';
 
 # comma separated list of default plugins
 my $DEFAULT_PLUGINS = join ",", qw(DPath
@@ -296,7 +296,7 @@ sub run_plugin
 sub _perl_gitversion {
         my $perlpath = "$^X";
         $perlpath    =~ s,/[^/]*$,,;
-        my $perl_gitversion  = "$perlpath/perl-gitversion";
+        my $perl_gitversion  = "$perlpath/perl-gitchangeset";
 
         if (-x $perl_gitversion) {
                 my $gitversion = qx!$perl_gitversion! ;
@@ -355,7 +355,7 @@ sub generate_codespeed_data
                 no strict 'refs'; ## no critic
                 my @resultkeys = split(/\./);
                 my ($res) = dpath("/results/".join("/", map { qq("$_") } @resultkeys)."/Benchmark/*[0]")->match($RESULTS);
-                my $benchmark =  $self->{options}{fastmode} ? "(F)$_" : $_ ;
+                my $benchmark =  $self->{options}{fastmode} ? "$_(F)" : $_ ;
                 push @codespeed_entries, {
                                           # order matters
                                           %codespeed_meta,

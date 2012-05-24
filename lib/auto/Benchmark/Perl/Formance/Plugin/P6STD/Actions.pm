@@ -1,12 +1,16 @@
 use YAML::XS;
-
-package # hide from cpan indexer
-  Actions;
+use strict;
+use warnings;
+our $OPT_log;
+our $OPT_match;
+package Actions;
+use Scalar::Util 'refaddr';
 
 # Generic ast translation done via autoload
 
 our $AUTOLOAD;
 my $SEQ = 1;
+our %GENCLASS;
 
 sub AUTOLOAD {
     my $self = shift;
@@ -35,9 +39,10 @@ sub hoistast {
     my $text = $node->Str;
     my %r;
     my @all;
+    my %allused;
     my @fake;
     for my $k (keys %$node) {
-	print STDERR $node->{_reduced}, " $k\n" if $OPT_log;
+	print STDERR $node->{_reduced} // 'ANON', " $k\n" if $OPT_log;
 	my $v = $node->{$k};
 	if ($k eq 'O') {
 	    for my $key (keys %$v) {
@@ -78,7 +83,10 @@ sub hoistast {
 	    if (ref $v) {
 		for (@$v) {
 		    next unless ref $_;     # XXX skip keys?
-		    push @all, $_->{'_ast'};
+		    push @all, $_->{'_ast'} if defined $_->{'_ast'}
+			and !($allused{refaddr $_}++);
+		    # don't generate multiple entries for a multi-named
+		    # capture
 		}
 	    }
 	}
@@ -116,8 +124,16 @@ sub hoistast {
 		$r{$k} = $zyg;
 #		    $r{zygs}{$k} = $SEQ++ if @$zyg and $k ne 'sym';
 	    }
+	    elsif (ref($v) eq 'HASH') {
+		$r{$k} = $v;
+	    }
 	    elsif (ref($v)) {
-		if (exists $v->{'_ast'}) {
+		if ($v->isa('Cursor') && !$v->{_reduced}) {
+		    $r{$k} = $v->{'_ast'} //= hoistast($v);
+		    bless $r{$k}, 'VAST::Str';
+		    next;
+		}
+		elsif (exists $v->{'_ast'}) {
 		    push @fake, $v->{'_ast'};
 		    $r{$k} = $v->{'_ast'};
 		}
@@ -393,6 +409,7 @@ sub gen_class {
 	print STDERR "Existing class $class\n" if $OPT_log;
 	return;
     }
+    $GENCLASS{$class} = $base;
     print STDERR "Creating class $class\n" if $OPT_log;
     @{$class . '::ISA'} = $base;
 }

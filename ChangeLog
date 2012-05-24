@@ -1,3 +1,9 @@
+2012-05-24  Steffen Schwigon  <ss5@renormalist.net>
+
+	* 0.27
+
+	* conditionally use Devel::Size only if available
+
 2012-01-26  Steffen Schwigon  <ss5@renormalist.net>
 
 	* 0.26
@@ -6,12 +12,9 @@
 	  - This benchmark idea turned out to not work as
 	    expected. Disable it for easier living.
 
-	* RegexpCommonTS: no more in with prove -Q (quiet) mode as under
+	  RegexpCommonTS: no more in with prove -Q (quiet) mode as under
 	  circumstances with 5.9.x quirks that's not available. It makes
 	  the benchmark slightly slower.
-
-	* dependency to Getopt::Long 2.38 in the hope to fix 5.8.8
-	  errors "Invalid linkage options".
 
 2012-01-04  Steffen Schwigon  <ss5@renormalist.net>
 

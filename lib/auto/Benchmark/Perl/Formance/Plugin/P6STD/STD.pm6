@@ -1,6 +1,6 @@
 # STD.pm
 #
-# Copyright 2007-2010, Larry Wall
+# Copyright 2007-2011, Larry Wall
 #
 # You may copy this software under the terms of the Artistic License,
 #     version 2.0 or later.
@@ -37,7 +37,7 @@ our $ALL;
     my $*GLOBAL;          # the GLOBAL scope
     my $*PROCESS;         # the PROCESS scope
     my $*UNIT;            # the UNIT scope
-    my $*CURPAD;      # current lexical scope
+    my $*CURLEX;          # current lexical scope info
     my $*CURPKG;          # current package scope
 
     my %*MYSTERY;     # names we assume may be post-declared functions
@@ -46,11 +46,12 @@ our $ALL;
     my %*LANG;            # (d) braided languages: MAIN, Q, Regex, etc
 
     my $*IN_DECL;     # (d) a declarator is looking for a name to declare
+    my $*HAS_SELF;     # (d) in a context where 'self' exists
     my $*SCOPE = "";      # (d) which scope declarator we're under
     my $*MULTINESS;       # (d) which multi declarator we're under
     my $*PKGDECL ::= "";         # (d) current package declarator
     my $*NEWPKG;      # (u/d) new package being declared
-    my $*NEWPAD;      # (u/d) new lexpad being declared
+    my $*NEWLEX;      # (u/d) new lex info being declared
     my $*DECLARAND;   # (u/d) new object associated with declaration
 
     my $*GOAL ::= "(eof)";  # (d) which special terminator we're most wanting
@@ -80,20 +81,14 @@ our $ALL;
     for disambiguating the name.  However, if no $sym is set, the original
     symbol will be used by default.
 
-    Note that some of these rules are written strangely because we're
-    still bootstrapping via a preprocessor, gimme5.  For instance,
-    blocks that contain nested braces are delimited by double braces
-    so that the preprocessor does not need to parse Perl 6 code.
-
-    This grammar relies on transitive longest-token semantics, though
-    initially we made a feeble attempt to order rules so a procedural
-    interpretation of alternation could usually produce a correct parse.
-    (This is becoming less true over time.)
+    This grammar relies on transitive longest-token semantics.
 
 =end notes
 
+method p6class () { ::STD::P6 }
+
 method TOP ($STOP = '') {
-    my $lang = self.cursor_fresh( ::STD::P6 );
+    my $lang = self.cursor_fresh( self.p6class );
 
     if $STOP {
         my $*GOAL ::= $STOP;
@@ -130,7 +125,7 @@ constant %tight_and       = (:dba('tight and')       , :prec<l=>, :assoc<list>);
 constant %tight_or        = (:dba('tight or')        , :prec<k=>, :assoc<list>);
 constant %conditional     = (:dba('conditional')     , :prec<j=>, :assoc<right>, :fiddly);
 constant %item_assignment = (:dba('item assignment') , :prec<i=>, :assoc<right>, :!pure);
-constant %list_assignment = (:dba('list assignment') , :prec<i=>, :assoc<right>, :sub<e=>, :fiddly, :!pure);
+constant %list_assignment = (:dba('list assignment') , :prec<i=>, :assoc<right>, :fiddly, :!pure);
 constant %loose_unary     = (:dba('loose unary')     , :prec<h=>, :assoc<unary>, :uassoc<left>, :pure);
 constant %comma           = (:dba('comma')           , :prec<g=>, :assoc<list>, :nextterm<nulltermish>, :fiddly, :pure);
 constant %list_infix      = (:dba('list infix')      , :prec<f=>, :assoc<list>, :pure);
@@ -164,119 +159,123 @@ constant $methodcall_prec = 'y=';
 my $*endsym = "null";
 my $*endargs = -1;
 
-proto token category { <...> }
+proto token category {*}
 
 token category:category { <sym> }
 
 token category:sigil { <sym> }
-proto token sigil { <...> }
+proto token sigil {*}
 
 token category:twigil { <sym> }
-proto token twigil (:$*endsym = 'begid') { <...> }
+proto token twigil is endsym<begid> {*}
 
 token category:special_variable { <sym> }
-proto token special_variable { <...> }
+proto token special_variable {*}
 
 token category:comment { <sym> }
-proto token comment { <...> }
+proto token comment {*}
 
 token category:version { <sym> }
-proto token version { <...> }
+proto token version {*}
 
 token category:module_name { <sym> }
-proto token module_name { <...> }
+proto token module_name {*}
 
 token category:value { <sym> }
-proto token value { <...> }
+proto token value {*}
 
 token category:term { <sym> }
-proto token term { <...> }
+proto token term {*}
 
-token category:strtonum { <sym> }
-proto token strtonum { <...> }
+token category:numeric { <sym> }
+proto token numeric {*}
 
 token category:quote { <sym> }
-proto token quote () { <...> }
+proto token quote () {*}
 
 token category:prefix { <sym> }
-proto token prefix is unary is defequiv(%symbolic_unary) { <...> }
+proto token prefix is unary is defequiv(%symbolic_unary) {*}
 
 token category:infix { <sym> }
-proto token infix is binary is defequiv(%additive) { <...> }
+proto token infix is binary is defequiv(%additive) {*}
 
 token category:postfix { <sym> }
-proto token postfix is unary is defequiv(%autoincrement) { <...> }
+proto token postfix is unary is defequiv(%autoincrement) {*}
 
 token category:dotty { <sym> }
-proto token dotty (:$*endsym = 'unspacey') { <...> }
+proto token dotty is endsym<unspacey> {*}
 
 token category:circumfix { <sym> }
-proto token circumfix { <...> }
+proto token circumfix {*}
 
 token category:postcircumfix { <sym> }
-proto token postcircumfix is unary { <...> }  # unary as far as EXPR knows...
+proto token postcircumfix is unary {*}  # unary as far as EXPR knows...
 
 token category:quote_mod { <sym> }
-proto token quote_mod { <...> }
+proto token quote_mod {*}
 
 token category:trait_mod { <sym> }
-proto token trait_mod (:$*endsym = 'spacey') { <...> }
+proto token trait_mod is endsym<keyspace> {*}
+
+token category:initializer { <sym> }
+proto token initializer is endsym<ws> {*}
 
 token category:type_declarator { <sym> }
-proto token type_declarator (:$*endsym = 'spacey') { <...> }
+proto token type_declarator is endsym<keyspace> {*}
 
 token category:scope_declarator { <sym> }
-proto token scope_declarator (:$*endsym = 'nofun') { <...> }
+proto token scope_declarator is endsym<nofun> {*}
 
 token category:package_declarator { <sym> }
-proto token package_declarator (:$*endsym = 'spacey') { <...> }
+proto token package_declarator is endsym<keyspace> {*}
 
 token category:multi_declarator { <sym> }
-proto token multi_declarator (:$*endsym = 'spacey') { <...> }
+proto token multi_declarator is endsym<keyspace> {*}
 
 token category:routine_declarator { <sym> }
-proto token routine_declarator (:$*endsym = 'nofun') { <...> }
+proto token routine_declarator is endsym<nofun> {*}
 
 token category:regex_declarator { <sym> }
-proto token regex_declarator (:$*endsym = 'spacey') { <...> }
+proto token regex_declarator is endsym<keyspace> {*}
 
 token category:statement_prefix { <sym> }
-proto rule  statement_prefix () { <...> }
+proto rule  statement_prefix () {*}
 
 token category:statement_control { <sym> }
-proto rule  statement_control (:$*endsym = 'spacey') { <...> }
+proto rule  statement_control is endsym<keyspace> {*}
 
 token category:statement_mod_cond { <sym> }
-proto rule  statement_mod_cond (:$*endsym = 'nofun') { <...> }
+proto rule  statement_mod_cond is endsym<nofun> {*}
 
 token category:statement_mod_loop { <sym> }
-proto rule  statement_mod_loop (:$*endsym = 'nofun') { <...> }
+proto rule  statement_mod_loop is endsym<nofun> {*}
 
 token category:infix_prefix_meta_operator { <sym> }
-proto token infix_prefix_meta_operator is binary { <...> }
+proto token infix_prefix_meta_operator is binary {*}
 
 token category:infix_postfix_meta_operator { <sym> }
-proto token infix_postfix_meta_operator ($op) is binary { <...> }
+proto token infix_postfix_meta_operator ($op) is binary {*}
 
 token category:infix_circumfix_meta_operator { <sym> }
-proto token infix_circumfix_meta_operator is binary { <...> }
+proto token infix_circumfix_meta_operator is binary {*}
 
 token category:postfix_prefix_meta_operator { <sym> }
-proto token postfix_prefix_meta_operator is unary { <...> }
+proto token postfix_prefix_meta_operator is unary {*}
 
 token category:prefix_postfix_meta_operator { <sym> }
-proto token prefix_postfix_meta_operator is unary { <...> }
+proto token prefix_postfix_meta_operator is unary {*}
 
 token category:prefix_circumfix_meta_operator { <sym> }
-proto token prefix_circumfix_meta_operator is unary { <...> }
+proto token prefix_circumfix_meta_operator is unary {*}
 
 token category:terminator { <sym> }
-proto token terminator { <...> }
+proto token terminator {*}
 
 token unspacey { <.unsp>? }
 token begid { <?before \w> }
 token endid { <?before <-[ \- \' \w ]> > }
 token spacey { <?before <[ \s \# ]> > }
+token keyspace { <!before '('> [ <?before <[ \s \# ]> > || <.panic: "Whitespace required after keyword"> ] }
 token nofun { <!before '(' | '.(' | '\\' | '\'' | '-' | "'" | \w > }
 
 # Note, don't reduce on a bare sigil unless you don't want a twigil or
@@ -299,20 +298,31 @@ token twigil:sym<~> { <sym> }
 # overridden in subgrammars
 token stopper { <!> }
 
+regex liststopper {
+    [
+    | <stdstopper>
+    | '==>'
+    | '==>>'
+    | '<=='
+    | '<<=='
+    ]
+}
+
 # hopefully we can include these tokens in any outer LTM matcher
 regex stdstopper {
-    :my @stub = return self if @*MEMOS[self.pos]<endstmt> :exists;
+    :temp $*STUB = return self if @*MEMOS[self.pos]<endstmt> :exists;
     :dba('standard stopper')
     [
     | <?terminator>
     | <?unitstopper>
+    | <?before <stopper> >
     | $                                 # unlikely, check last (normal LTM behavior)
     ]
     { @*MEMOS[$¢.pos]<endstmt> ||= 1; }
 }
 
 token longname {
-    <name> [ <!before ':{'> <colonpair> ]*
+    <name> {} [ <?before ':' <[ a..z A..Z _ \< \[ \« ]>> <colonpair> ]*
 }
 
 token name {
@@ -338,6 +348,514 @@ token morename {
 ##############################
 # Quote primitives           #
 ##############################
+
+# assumes whitespace is eaten already
+
+method peek_delimiters {
+    my $pos = self.pos;
+    my $startpos = $pos;
+    my $char = substr(self.orig,$pos++,1);
+    if $char ~~ /^\s$/ {
+        self.panic("Whitespace character is not allowed as delimiter"); # "can't happen"
+    }
+    elsif $char ~~ /^\w$/ {
+        self.panic("Alphanumeric character is not allowed as delimiter");
+    }
+    elsif $char eq '' {
+        self.panic("No delimiter found");
+    }
+    elsif not ord $char {
+        self.panic("Null character is not allowed as delimiter");
+    }
+    elsif %STD::close2open{$char} {
+        self.panic("Use of a closing delimiter for an opener is reserved");
+    }
+    elsif $char eq ':' {
+        self.panic("Colons may not be used to delimit quoting constructs");
+    }
+
+    my $rightbrack = %STD::open2close{$char};
+    if not defined $rightbrack {
+        return $char, $char;
+    }
+    while substr(self.orig,$pos,1) eq $char {
+        $pos++;
+    }
+    my $len = $pos - $startpos;
+    my $start = $char x $len;
+    my $stop = $rightbrack x $len;
+    return $start, $stop;
+}
+
+role startstop[$start,$stop] {
+    token starter { $start }
+    token stopper { $stop }
+}
+
+role stop[$stop] {
+    token starter { <!> }
+    token stopper { $stop }
+}
+
+role unitstop[$stop] {
+    token unitstopper { $stop }
+}
+
+token unitstopper { $ }
+
+method balanced ($start,$stop) { self.mixin( ::startstop[$start,$stop] ); }
+method unbalanced ($stop) { self.mixin( ::stop[$stop] ); }
+method unitstop ($stop) { self.mixin( ::unitstop[$stop] ); }
+
+method truly ($bool,$opt) {
+    return self if $bool;
+    self.sorry("Cannot negate $opt adverb");
+    self;
+}
+
+token charname {
+    [
+    | <radint>
+    | <alpha> .*? <?before \s*[ ',' | '#' | ']']>
+    ] || <.sorry: "Unrecognized character name"> .*?<?terminator>
+}
+
+token charnames { \s* [<charname><.ws>] ** [','\s*] }
+
+token charspec {
+    [
+    | :dba('character name') '[' ~ ']' <charnames>
+    | \d+
+    | <[ ?..Z \\.._ ]>
+    | <?> <.sorry: "Unrecognized \\c character"> .
+    ]
+}
+
+proto token backslash {*}
+proto token escape {*}
+token starter { <!> }
+token escape:none { <!> }
+
+# and this is what makes nibbler polymorphic...
+method nibble ($lang) {
+    self.cursor_fresh($lang).nibbler;
+}
+
+# note: polymorphic over many quote languages, we hope
+token nibbler {
+    :my $text = '';
+    :my $from = self.pos;
+    :my $to = $from;
+    :my @nibbles = ();
+    :my $multiline = 0;
+    { $.from = self.pos; }
+    [ <!before <stopper> >
+        [
+        || <starter> <nibbler> <stopper>
+                        {
+                            push @nibbles, $¢.makestr(TEXT => $text, _from => $from, _pos => $to ) if $from != $to;
+
+                            my $n = $<nibbler>[*-1]<nibbles>;
+                            my @n = @$n;
+
+                            push @nibbles, $<starter>;
+                            push @nibbles, @n;
+                            push @nibbles, $<stopper>;
+
+                            $text = '';
+                            $to = $from = $¢.pos;
+                        }
+        || <escape>     {
+                            push @nibbles, $¢.makestr(TEXT => $text, _from => $from, _pos => $to ) if $from != $to;
+                            push @nibbles, $<escape>[*-1];
+                            $text = '';
+                            $to = $from = $¢.pos;
+                        }
+        || .
+                        {
+                            my $ch = substr(self.orig, $¢.pos-1, 1);
+                            $text ~= $ch;
+                            $to = $¢.pos;
+                            if $ch ~~ "\n" {
+                                $multiline++;
+                            }
+                        }
+        ]
+    ]*
+    {
+        push @nibbles, $¢.makestr(TEXT => $text, _from => $from, _pos => $to ) if $from != $to or !@nibbles;
+        $<nibbles> = \@nibbles;
+        $.pos = $¢.pos;
+        $<nibbler> :delete;
+        $<escape> :delete;
+        $<starter> :delete;
+        $<stopper> :delete;
+        $*LAST_NIBBLE = $¢;
+        $*LAST_NIBBLE_MULTILINE = $¢ if $multiline;
+    }
+}
+
+token babble ($l) {
+    :my $lang = $l;
+    :my $start;
+    :my $stop;
+
+    <.ws>
+    [ <quotepair> <.ws>
+        {
+            my $kv = $<quotepair>[*-1];
+            $lang = ($lang.tweak(| ($kv.<k> => $kv.<v>))
+                or $lang.sorry("Unrecognized adverb :" ~ $kv.<k> ~ '(' ~ $kv.<v> ~ ')'));
+        }
+    ]*
+
+    $<B> = {
+        ($start,$stop) = $¢.peek_delimiters();
+        $lang = $start ne $stop ?? $lang.balanced($start,$stop)
+                                !! $lang.unbalanced($stop);
+        [$lang,$start,$stop];
+    }
+}
+
+our @herestub_queue;
+
+class Herestub {
+    has Str $.delim;
+    has $.orignode;
+    has $.lang;
+}
+
+role herestop {
+    token stopper { ^^ {} $<ws>=(\h*?) $*DELIM \h* <.unv>?? $$ \v? }
+}
+
+# XXX be sure to temporize @herestub_queue on reentry to new line of heredocs
+
+method heredoc () {
+    my $*CTX ::= self.callm if $*DEBUG +& DEBUG::trace_call;
+    my $here = self;
+    while my $herestub = shift @herestub_queue {
+        my $*DELIM = $herestub.delim;
+        my $lang = $herestub.lang.mixin( ::herestop );
+        my $doc;
+        if ($doc) = $here.nibble($lang) {
+            $here = $doc.trim_heredoc();
+            $herestub.orignode<doc> = $doc;
+        }
+        else {
+            self.panic("Ending delimiter $*DELIM not found");
+        }
+    }
+    return self.cursor($here.pos);  # return to initial type
+}
+
+token quibble ($l) {
+    :my ($lang, $start, $stop);
+    <babble($l)>
+    { my $B = $<babble><B>; ($lang,$start,$stop) = @$B; }
+
+    $start <nibble($lang)> [ $stop || <.panic: "Couldn't find terminator $stop"> ]
+
+    {
+        if $lang<_herelang> {
+            push @herestub_queue,
+                ::Herestub.new(
+                    delim => $<nibble><nibbles>[0]<TEXT>,
+                    orignode => $¢,
+                    lang => $lang<_herelang>,
+                );
+        }
+    }
+}
+
+token quotepair {
+    :my $key;
+    :my $value;
+
+    ':'
+    :dba('colon pair (restricted)')
+    [
+    | '!' <identifier> [ <?before '('> <.sorry: "Argument not allowed on negated pair"> <circumfix> ]?
+        { $key = $<identifier>.Str; $value = 0; }
+    | <identifier>
+        { $key = $<identifier>.Str; }
+        [
+        || <.unsp>? <?before '('> <circumfix> { $value = $<circumfix>; }
+        || { $value = 1; }
+        ]
+    | $<n>=(\d+) $<id>=(<[a..z]>+) [ <?before '('> <.sorry: "2nd argument not allowed on pair"> <circumfix> ]?
+        { $key = $<id>.Str; $value = $<n>.Str; }
+    ]
+    $<k> = {$key} $<v> = {$value}
+}
+
+token quote:sym<' '>   { :dba('single quotes') "'" ~ "'" <nibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:q).unbalanced("'"))> }
+token quote:sym<" ">   { :dba('double quotes') '"' ~ '"' <nibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:qq).unbalanced('"'))> }
+
+token circumfix:sym<« »>   { :dba('shell-quote words') '«' ~ '»' <nibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:qq).tweak(:ww).balanced('«','»'))> }
+token circumfix:sym«<< >>» { :dba('shell-quote words') '<<' ~ '>>' <nibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:qq).tweak(:ww).balanced('<<','>>'))> }
+token circumfix:sym«< >»   { :dba('quote words') '<' ~ '>'
+    [
+        [ <?before 'STDIN>' > <.obs('<STDIN>', '$' ~ '*IN.lines (or add whitespace to suppress warning)')> ]?  # XXX fake out gimme5
+        [ <?before '>' > <.obs('<>', "lines() to read input,\n  or ('') to represent the null string,\n  or () to represent Nil")> ]?
+        <nibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:q).tweak(:w).balanced('<','>'))>
+    ]
+}
+
+##################
+# Lexer routines #
+##################
+
+token ws {
+    :temp $*STUB = return self if @*MEMOS[self.pos]<ws> :exists;
+    :my $startpos = self.pos;
+    :my $*HIGHEXPECT = {};
+
+    :dba('whitespace')
+    [
+        | \h+ <![\#\s\\]> { @*MEMOS[$¢.pos]<ws> = $startpos; }   # common case
+        | <?before \w> <?after \w> :::
+            { @*MEMOS[$startpos]<ws>:delete; }
+            <.sorry: "Whitespace is required between alphanumeric tokens">        # must \s+ between words
+    ]
+    ||
+    [
+    | <.unsp>
+    | <.vws> <.heredoc>
+    | <.unv>
+    | $ { $¢.moreinput }
+    ]*
+
+    {
+        if ($¢.pos == $startpos) {
+            @*MEMOS[$¢.pos]<ws>:delete;
+        }
+        else {
+            @*MEMOS[$¢.pos]<ws> = $startpos;
+            @*MEMOS[$¢.pos]<endstmt> = @*MEMOS[$startpos]<endstmt>
+                if @*MEMOS[$startpos]<endstmt> :exists;
+        }
+    }
+}
+
+token unsp {
+    \\ <?before [\s|'#'] >
+    :dba('unspace')
+    [
+    | <.vws>
+    | <.unv>
+    | $ { $¢.moreinput }
+    ]*
+}
+
+token vws {
+    :dba('vertical whitespace')
+    [
+        [
+        | \v
+        | '#DEBUG -1' { say "DEBUG"; $*DEBUG = -1; } \V* \v
+        | '<<<<<<<' :: <?before [.*? \v '=======']: .*? \v '>>>>>>>' > <.sorry: 'Found a version control conflict marker'> \V* \v
+        | '=======' :: .*? \v '>>>>>>>' \V* \v   # ignore second half
+        ]
+    ]+
+}
+
+# We provide two mechanisms here:
+# 1) define $*moreinput, or
+# 2) override moreinput method
+method moreinput () {
+    $*moreinput.() if $*moreinput;
+    self;
+}
+
+token unv {
+   :dba('horizontal whitespace')
+   [
+   | \h+
+   | <?before \h* '=' [ \w | '\\'] > ^^ <.pod_comment>
+   | \h* <comment>
+   ]
+}
+
+token comment:sym<#`(...)> {
+    '#`' :: [ <?opener> || <.panic: "Opening bracket is required for #` comment"> ]
+    <.quibble($¢.cursor_fresh( %*LANG<Q> ))>
+}
+
+token comment:sym<#(...)> {
+    '#' <?opener>
+    <.suppose
+        <quibble($¢.cursor_fresh( %*LANG<Q> ))>
+        <!before <[,;:]>* \h* [ '#' | $$ ] >   # extra stuff on line after closer?
+    >
+    <.worry: "Embedded comment seems to be missing backtick"> <!>
+}
+
+token comment:sym<#=(...)> {
+    '#=' <?opener> ::
+    <quibble($¢.cursor_fresh( %*LANG<Q> ))>
+}
+
+token comment:sym<#=> {
+   '#=' :: $<attachment> = [\N*]
+}
+
+token comment:sym<#> {
+   '#' {} \N*
+}
+
+token ident {
+    <.alpha> \w*
+}
+
+token apostrophe {
+    <[ ' \- ]>
+}
+
+token identifier {
+    <.ident> [ <.apostrophe> <.ident> ]*
+}
+
+# XXX We need to parse the pod eventually to support $= variables.
+
+token pod_comment {
+    ^^ \h* '=' <.unsp>?
+    [
+    | 'begin' \h+ <identifier> ::
+        [
+        || .*? "\n" [ :r \h* '=' <.unsp>? 'end' \h+ $<identifier> » \N* ]
+        || <?{ $<identifier>.Str eq 'END'}> .*
+        || { my $id = $<identifier>.Str; self.panic("=begin $id without matching =end $id"); }
+        ]
+    | 'begin' » :: \h* [ $$ || '#' || <.sorry: "Unrecognized token after =begin"> \N* ]
+        [ .*? "\n" \h* '=' <.unsp>? 'end' » \N* || { self.panic("=begin without matching =end"); } ]
+        
+    | 'for' » :: \h* [ <identifier> || $$ || '#' || <.sorry: "Unrecognized token after =for"> \N* ]
+        [.*?  ^^ \h* $$ || .*]
+    | :: 
+        [ <?before .*? ^^ '=cut' » > <.panic: "Obsolescent pod format, please use =begin/=end instead"> ]?
+        [<alpha>||\s||<.sorry: "Illegal pod directive">]
+        \N*
+    ]
+}
+
+# suppress fancy end-of-line checking
+token embeddedblock {
+    # encapsulate braided languages
+    :temp %*LANG;
+    :my $*SIGNUM;
+    :my $*GOAL ::= '}';
+    :temp $*CURLEX;
+
+    :dba('embedded block')
+
+    <.newlex>
+    <.finishlex>
+    '{' :: [ :lang(%*LANG<MAIN>) <statementlist> ]
+    [ '}' || <.panic: "Unable to parse statement list; couldn't find right brace"> ]
+}
+
+token binints { [<.ws><binint><.ws>] ** ',' }
+
+token binint {
+    <[ 0..1 ]>+ [ _ <[ 0..1 ]>+ ]*
+}
+
+token octints { [<.ws><octint><.ws>] ** ',' }
+
+token octint {
+    <[ 0..7 ]>+ [ _ <[ 0..7 ]>+ ]*
+}
+
+token hexints { [<.ws><hexint><.ws>] ** ',' }
+
+token hexint {
+    <[ 0..9 a..f A..F ]>+ [ _ <[ 0..9 a..f A..F ]>+ ]*
+}
+
+token decints { [<.ws><decint><.ws>] ** ',' }
+
+token decint {
+    \d+ [ _ \d+ ]*
+}
+
+token integer {
+    [
+    | 0 [ b '_'? <binint>
+        | o '_'? <octint>
+        | x '_'? <hexint>
+        | d '_'? <decint>
+        | <decint>
+            <!!{ $¢.worry("Leading 0 does not indicate octal in Perl 6; please use 0o" ~ $<decint>.Str ~ " if you mean that") }>
+        ]
+    | <decint>
+    ]
+    <!!before ['.' <?before \s | ',' | '=' | <terminator> > <.sorry: "Decimal point must be followed by digit">]? >
+    [ <?before '_' '_'+\d> <.sorry: "Only isolated underscores are allowed inside numbers"> ]?
+}
+
+token radint {
+    [
+    | <integer>
+    | <?before ':'\d> <rad_number> <?{
+                        defined $<rad_number><intpart>
+                        and
+                        not defined $<rad_number><fracpart>
+                    }>
+    ]
+}
+
+token escale {
+    <[Ee]> <[+\-]>? <decint>
+}
+
+# careful to distinguish from both integer and 42.method
+token dec_number {
+    :dba('decimal number')
+    [
+    | $<coeff> = [              '.' <frac=.decint> ] <escale>?
+    | $<coeff> = [<int=.decint> '.' <frac=.decint> ] <escale>?
+    | $<coeff> = [<int=.decint>                    ] <escale>
+    ]
+    [ <?before '.' \d> <.sorry: "Number contains two decimal points (missing 'v' for version number?)"> ['.'\d+]+ ]?
+    [ <?before '_' '_'+\d> <.sorry: "Only isolated underscores are allowed inside numbers"> ]?
+}
+
+token alnumint {
+    [ <[ 0..9 a..z A..Z ]>+ [ _ <[ 0..9 a..z A..Z ]>+ ]* ]
+}
+
+token rad_number {
+    ':' $<radix> = [\d+] <.unsp>?      # XXX optional dot here?
+    {}           # don't recurse in lexer
+    :dba('number in radix notation')
+    [
+    || '<' :s
+            [
+            | $<coeff> = [                '.' <frac=.alnumint> ]
+            | $<coeff> = [<int=.alnumint> '.' <frac=.alnumint> ]
+            | $<coeff> = [<int=.alnumint>                    ]
+            ]
+            [
+                '*' <base=.radint>
+                [ '**' <exp=.radint> || <.sorry: "Base is missing ** exponent part"> ]
+            ]?
+       '>'
+#      { make radcalc($<radix>, $<coeff>, $<base>, $<exp>) }
+    || <?before '['> <circumfix>
+    || <?before '('> <circumfix>
+    || <.panic: "Malformed radix number">
+    ]
+}
+
+token terminator:sym<)>
+    { <sym> <O(|%terminator)> }
+
+token terminator:sym<]>
+    { ']' <O(|%terminator)> }
+
+token terminator:sym<}>
+    { '}' <O(|%terminator)> }
 
 # XXX should eventually be derived from current Unicode tables.
 constant %open2close = (
@@ -539,700 +1057,26 @@ constant %close2open = invert %open2close;
 
 token opener {
   <[
-\x0028
-\x003C
-\x005B
-\x007B
-\x00AB
-\x0F3A
-\x0F3C
-\x169B
-\x2018
-\x201A
-\x201B
-\x201C
-\x201E
-\x201F
-\x2039
-\x2045
-\x207D
-\x208D
-\x2208
-\x2209
-\x220A
-\x2215
-\x223C
-\x2243
-\x2252
-\x2254
-\x2264
-\x2266
-\x2268
-\x226A
-\x226E
-\x2270
-\x2272
-\x2274
-\x2276
-\x2278
-\x227A
-\x227C
-\x227E
-\x2280
-\x2282
-\x2284
-\x2286
-\x2288
-\x228A
-\x228F
-\x2291
-\x2298
-\x22A2
-\x22A6
-\x22A8
-\x22A9
-\x22AB
-\x22B0
-\x22B2
-\x22B4
-\x22B6
-\x22C9
-\x22CB
-\x22D0
-\x22D6
-\x22D8
-\x22DA
-\x22DC
-\x22DE
-\x22E0
-\x22E2
-\x22E4
-\x22E6
-\x22E8
-\x22EA
-\x22EC
-\x22F0
-\x22F2
-\x22F3
-\x22F4
-\x22F6
-\x22F7
-\x2308
-\x230A
-\x2329
-\x23B4
-\x2768
-\x276A
-\x276C
-\x276E
-\x2770
-\x2772
-\x2774
-\x27C3
-\x27C5
-\x27D5
-\x27DD
-\x27E2
-\x27E4
-\x27E6
-\x27E8
-\x27EA
-\x2983
-\x2985
-\x2987
-\x2989
-\x298B
-\x298D
-\x298F
-\x2991
-\x2993
-\x2995
-\x2997
-\x29C0
-\x29C4
-\x29CF
-\x29D1
-\x29D4
-\x29D8
-\x29DA
-\x29F8
-\x29FC
-\x2A2B
-\x2A2D
-\x2A34
-\x2A3C
-\x2A64
-\x2A79
-\x2A7D
-\x2A7F
-\x2A81
-\x2A83
-\x2A8B
-\x2A91
-\x2A93
-\x2A95
-\x2A97
-\x2A99
-\x2A9B
-\x2AA1
-\x2AA6
-\x2AA8
-\x2AAA
-\x2AAC
-\x2AAF
-\x2AB3
-\x2ABB
-\x2ABD
-\x2ABF
-\x2AC1
-\x2AC3
-\x2AC5
-\x2ACD
-\x2ACF
-\x2AD1
-\x2AD3
-\x2AD5
-\x2AEC
-\x2AF7
-\x2AF9
-\x2E02
-\x2E04
-\x2E09
-\x2E0C
-\x2E1C
-\x2E20
-\x3008
-\x300A
-\x300C
-\x300E
-\x3010
-\x3014
-\x3016
-\x3018
-\x301A
-\x301D
-\xFD3E
-\xFE17
-\xFE35
-\xFE37
-\xFE39
-\xFE3B
-\xFE3D
-\xFE3F
-\xFE41
-\xFE43
-\xFE47
-\xFE59
-\xFE5B
-\xFE5D
-\xFF08
-\xFF1C
-\xFF3B
-\xFF5B
-\xFF5F
-\xFF62
+\x0028 \x003C \x005B \x007B \x00AB \x0F3A \x0F3C \x169B \x2018 \x201A \x201B
+\x201C \x201E \x201F \x2039 \x2045 \x207D \x208D \x2208 \x2209 \x220A \x2215
+\x223C \x2243 \x2252 \x2254 \x2264 \x2266 \x2268 \x226A \x226E \x2270 \x2272
+\x2274 \x2276 \x2278 \x227A \x227C \x227E \x2280 \x2282 \x2284 \x2286 \x2288
+\x228A \x228F \x2291 \x2298 \x22A2 \x22A6 \x22A8 \x22A9 \x22AB \x22B0 \x22B2
+\x22B4 \x22B6 \x22C9 \x22CB \x22D0 \x22D6 \x22D8 \x22DA \x22DC \x22DE \x22E0
+\x22E2 \x22E4 \x22E6 \x22E8 \x22EA \x22EC \x22F0 \x22F2 \x22F3 \x22F4 \x22F6
+\x22F7 \x2308 \x230A \x2329 \x23B4 \x2768 \x276A \x276C \x276E \x2770 \x2772
+\x2774 \x27C3 \x27C5 \x27D5 \x27DD \x27E2 \x27E4 \x27E6 \x27E8 \x27EA \x2983
+\x2985 \x2987 \x2989 \x298B \x298D \x298F \x2991 \x2993 \x2995 \x2997 \x29C0
+\x29C4 \x29CF \x29D1 \x29D4 \x29D8 \x29DA \x29F8 \x29FC \x2A2B \x2A2D \x2A34
+\x2A3C \x2A64 \x2A79 \x2A7D \x2A7F \x2A81 \x2A83 \x2A8B \x2A91 \x2A93 \x2A95
+\x2A97 \x2A99 \x2A9B \x2AA1 \x2AA6 \x2AA8 \x2AAA \x2AAC \x2AAF \x2AB3 \x2ABB
+\x2ABD \x2ABF \x2AC1 \x2AC3 \x2AC5 \x2ACD \x2ACF \x2AD1 \x2AD3 \x2AD5 \x2AEC
+\x2AF7 \x2AF9 \x2E02 \x2E04 \x2E09 \x2E0C \x2E1C \x2E20 \x3008 \x300A \x300C
+\x300E \x3010 \x3014 \x3016 \x3018 \x301A \x301D \xFD3E \xFE17 \xFE35 \xFE37
+\xFE39 \xFE3B \xFE3D \xFE3F \xFE41 \xFE43 \xFE47 \xFE59 \xFE5B \xFE5D \xFF08
+\xFF1C \xFF3B \xFF5B \xFF5F \xFF62
   ]>
 }
-
-# assumes whitespace is eaten already
-
-method peek_delimiters {
-    my $pos = self.pos;
-    my $startpos = $pos;
-    my $char = substr($*ORIG,$pos++,1);
-    if $char ~~ /^\s$/ {
-        self.panic("Whitespace character is not allowed as delimiter"); # "can't happen"
-    }
-    elsif $char ~~ /^\w$/ {
-        self.panic("Alphanumeric character is not allowed as delimiter");
-    }
-    elsif %close2open{$char} {
-        self.panic("Use of a closing delimiter for an opener is reserved");
-    }
-    elsif $char eq ':' {
-        self.panic("Colons may not be used to delimit quoting constructs");
-    }
-
-    my $rightbrack = %open2close{$char};
-    if not defined $rightbrack {
-        return $char, $char;
-    }
-    while substr($*ORIG,$pos,1) eq $char {
-        $pos++;
-    }
-    my $len = $pos - $startpos;
-    my $start = $char x $len;
-    my $stop = $rightbrack x $len;
-    return $start, $stop;
-}
-
-role startstop[$start,$stop] {
-    token starter { $start }
-    token stopper { $stop }
-} # end role
-
-role stop[$stop] {
-    token starter { <!> }
-    token stopper { $stop }
-} # end role
-
-role unitstop[$stop] {
-    token unitstopper { $stop }
-} # end role
-
-token unitstopper { $ }
-
-method balanced ($start,$stop) { self.mixin( ::startstop[$start,$stop] ); }
-method unbalanced ($stop) { self.mixin( ::stop[$stop] ); }
-method unitstop ($stop) { self.mixin( ::unitstop[$stop] ); }
-
-method truly ($bool,$opt) {
-    return self if $bool;
-    self.sorry("Can't negate $opt adverb");
-    self;
-}
-
-token charname {
-    [
-    | <radint>
-    | <[a..z A..Z]><-[ \] , \# ]>*?<[a..z A..Z ) ]> <?before \s*<[ \] , \# ]>>
-    ] || <.sorry: "Unrecognized character name"> .*?<?terminator>
-}
-
-token charnames { [<.ws><charname><.ws>] ** ',' }
-
-token charspec {
-    [
-    | :dba('character name') '[' ~ ']' <charnames>
-    | \d+
-    | <[ ?..Z \\.._ ]>
-    | <?> <.sorry: "Unrecognized \\c character"> .
-    ]
-}
-
-proto token backslash { <...> }
-proto token escape { <...> }
-token starter { <!> }
-token escape:none { <!> }
-
-# and this is what makes nibbler polymorphic...
-method nibble ($lang) {
-    self.cursor_fresh($lang).nibbler;
-}
-
-# note: polymorphic over many quote languages, we hope
-token nibbler {
-    :my $text = '';
-    :my $from = self.pos;
-    :my $to = $from;
-    :my @nibbles = ();
-    :my $multiline = 0;
-    :my $nibble;
-    { $<_from> = self.pos; }
-    [ <!before <stopper> >
-        [
-        || <starter> <nibbler> <stopper>
-                        {{
-                            push @nibbles, $¢.makestr(TEXT => $text, _from => $from, _pos => $to ) if $from != $to;
-
-                            my $n = $<nibbler>[*-1]<nibbles>;
-                            my @n = @$n;
-
-                            push @nibbles, $<starter>;
-                            push @nibbles, @n;
-                            push @nibbles, $<stopper>;
-
-                            $text = '';
-                            $to = $from = $¢.pos;
-                        }}
-        || <escape>     {{
-                            push @nibbles, $¢.makestr(TEXT => $text, _from => $from, _pos => $to ) if $from != $to;
-                            push @nibbles, $<escape>[*-1];
-                            $text = '';
-                            $to = $from = $¢.pos;
-                        }}
-        || .
-                        {{
-                            my $ch = substr($*ORIG, $¢.pos-1, 1);
-                            $text ~= $ch;
-                            $to = $¢.pos;
-                            if $ch ~~ "\n" {
-                                $multiline++;
-                            }
-                        }}
-        ]
-    ]*
-    {{
-        push @nibbles, $¢.makestr(TEXT => $text, _from => $from, _pos => $to ) if $from != $to or !@nibbles;
-        $<nibbles> = \@nibbles;
-        $<_pos> = $¢.pos;
-        $<nibbler> :delete;
-        $<escape> :delete;
-        $<starter> :delete;
-        $<stopper> :delete;
-        $*LAST_NIBBLE = $¢;
-        $*LAST_NIBBLE_MULTILINE = $¢ if $multiline;
-    }}
-}
-
-token babble ($l) {
-    :my $lang = $l;
-    :my $start;
-    :my $stop;
-
-    <.ws>
-    [ <quotepair> <.ws>
-        {
-            my $kv = $<quotepair>[*-1];
-            $lang = ($lang.tweak($kv.<k>, $kv.<v>)
-                or $lang.sorry("Unrecognized adverb :" ~ $kv.<k> ~ '(' ~ $kv.<v> ~ ')'));
-        }
-    ]*
-
-    {
-        ($start,$stop) = $¢.peek_delimiters();
-        $lang = $start ne $stop ?? $lang.balanced($start,$stop)
-                                !! $lang.unbalanced($stop);
-        $<B> = [$lang,$start,$stop];
-    }
-}
-
-our @herestub_queue;
-
-class Herestub {
-    has Str $.delim;
-    has $.orignode;
-    has $.lang;
-} # end class
-
-role herestop {
-    token stopper { ^^ {} $<ws>=(\h*?) $*DELIM \h* <.unv>?? $$ \v? }
-} # end role
-
-# XXX be sure to temporize @herestub_queue on reentry to new line of heredocs
-
-method heredoc () {
-    my $*CTX ::= self.callm if $*DEBUG +& DEBUG::trace_call;
-    my $here = self;
-    while my $herestub = shift @herestub_queue {
-        my $*DELIM = $herestub.delim;
-        my $lang = $herestub.lang.mixin( ::herestop );
-        my $doc;
-        if ($doc) = $here.nibble($lang) {
-            $here = $doc.trim_heredoc();
-            $herestub.orignode<doc> = $doc;
-        }
-        else {
-            self.panic("Ending delimiter $*DELIM not found");
-        }
-    }
-    return self.cursor($here.pos);  # return to initial type
-}
-
-token quibble ($l) {
-    :my ($lang, $start, $stop);
-    <babble($l)>
-    { my $B = $<babble><B>; ($lang,$start,$stop) = @$B; }
-
-    $start <nibble($lang)> [ $stop || <.panic: "Couldn't find terminator $stop"> ]
-
-    {{
-        if $lang<_herelang> {
-            push @herestub_queue,
-                ::Herestub.new(
-                    delim => $<nibble><nibbles>[0]<TEXT>,
-                    orignode => $¢,
-                    lang => $lang<_herelang>,
-                );
-        }
-    }}
-}
-
-token quotepair {
-    :my $key;
-    :my $value;
-
-    ':'
-    :dba('colon pair (restricted)')
-    [
-    | '!' <identifier> [ <?before '('> <.sorry: "Argument not allowed on negated pair"> <circumfix> ]?
-        { $key = $<identifier>.Str; $value = 0; }
-    | <identifier>
-        { $key = $<identifier>.Str; }
-        [
-        || <.unsp>? <?before '('> <circumfix> { $value = $<circumfix>; }
-        || { $value = 1; }
-        ]
-    | $<n>=(\d+) $<id>=(<[a..z]>+) [ <?before '('> <.sorry: "2nd argument not allowed on pair"> <circumfix> ]?
-        { $key = $<id>.Str; $value = $<n>.Str; }
-    ]
-    { $<k> = $key; $<v> = $value; }
-}
-
-token quote:sym<' '>   { :dba('single quotes') "'" ~ "'" <nibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:q).unbalanced("'"))> }
-token quote:sym<" ">   { :dba('double quotes') '"' ~ '"' <nibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:qq).unbalanced('"'))> }
-
-token circumfix:sym<« »>   { :dba('shell-quote words') '«' ~ '»' <nibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:qq).tweak(:ww).balanced('«','»'))> }
-token circumfix:sym«<< >>» { :dba('shell-quote words') '<<' ~ '>>' <nibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:qq).tweak(:ww).balanced('<<','>>'))> }
-token circumfix:sym«< >»   { :dba('quote words') '<' ~ '>'
-    [
-        [ <?before 'STDIN>' > <.obs('<STDIN>', '$' ~ '*IN.lines')> ]?  # XXX fake out gimme5
-        [ <?before '>' > <.obs('<>', "lines() to read input,\n  or ('') to represent the null string,\n  or () to represent Nil")> ]?
-        <nibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:q).tweak(:w).balanced('<','>'))>
-    ]
-}
-
-##################
-# Lexer routines #
-##################
-
-token ws {
-    :my @stub = return self if @*MEMOS[self.pos]<ws> :exists;
-    :my $startpos = self.pos;
-    :my $*HIGHEXPECT = {};
-
-    :dba('whitespace')
-    [
-        | \h+ <![\#\s\\]> { @*MEMOS[$¢.pos]<ws> = $startpos; }   # common case
-        | <?before \w> <?after \w> :::
-            { @*MEMOS[$startpos]<ws>:delete; }
-            <.sorry: "Whitespace is required between alphanumeric tokens">        # must \s+ between words
-    ]
-    ||
-    [
-    | <.unsp>
-    | <.vws> <.heredoc>
-    | <.unv>
-    | $ { $¢.moreinput }
-    ]*
-
-    {{
-        if ($¢.pos == $startpos) {
-            @*MEMOS[$¢.pos]<ws>:delete;
-        }
-        else {
-            @*MEMOS[$¢.pos]<ws> = $startpos;
-            @*MEMOS[$¢.pos]<endstmt> = @*MEMOS[$startpos]<endstmt>
-                if @*MEMOS[$startpos]<endstmt> :exists;
-        }
-    }}
-}
-
-token unsp {
-    \\ <?before [\s|'#'] >
-    :dba('unspace')
-    [
-    | <.vws>
-    | <.unv>
-    | $ { $¢.moreinput }
-    ]*
-}
-
-token vws {
-    :dba('vertical whitespace')
-    [
-        [
-        | \v
-        | '#DEBUG -1' { say "DEBUG"; $*DEBUG = -1; } \V* \v
-        | '<<<<<<<' :: <?before [.*? \v '=======']: .*? \v '>>>>>>>' > <.sorry: 'Found a version control conflict marker'> \V* \v
-        | '=======' :: .*? \v '>>>>>>>' \V* \v   # ignore second half
-        ]
-    ]+
-}
-
-# We provide two mechanisms here:
-# 1) define $*moreinput, or
-# 2) override moreinput method
-method moreinput () {
-    $*moreinput.() if $*moreinput;
-}
-
-token unv {
-   :dba('horizontal whitespace')
-   [
-   | \h+
-   | <?before \h* '=' [ \w | '\\'] > ^^ <.pod_comment>
-   | \h* <comment>
-   ]
-}
-
-token comment:sym<#`(...)> {
-    '#`' :: [ <?opener> || <.panic: "Opening bracket is required for #` comment"> ]
-    <.quibble($¢.cursor_fresh( %*LANG<Q> ))>
-}
-
-token comment:sym<#(...)> {
-    '#' <?opener>
-    <.suppose
-        <quibble($¢.cursor_fresh( %*LANG<Q> ))>
-        <!before <[,;:]>* \h* [ '#' | $$ ] >   # extra stuff on line after closer?
-    >
-    <.worry: "Embedded comment seems to be missing backtick"> <!>
-}
-
-token comment:sym<#=(...)> {
-    '#=' <?opener> ::
-    <quibble($¢.cursor_fresh( %*LANG<Q> ))>
-}
-
-token comment:sym<#=> {
-   '#=' :: $<attachment> = [\N*]
-}
-
-token comment:sym<#> {
-   '#' {} \N*
-}
-
-token ident {
-    <.alpha> \w*
-}
-
-token apostrophe {
-    <[ ' \- ]>
-}
-
-token identifier {
-    <.ident> [ <.apostrophe> <.ident> ]*
-}
-
-# XXX We need to parse the pod eventually to support $= variables.
-
-token pod_comment {
-    ^^ \h* '=' <.unsp>?
-    [
-    | 'begin' \h+ <identifier> ::
-        [
-        || .*? "\n" [ :r \h* '=' <.unsp>? 'end' \h+ $<identifier> » \N* ]
-        || <?{ $<identifier>.Str eq 'END'}> .*
-        || { my $id = $<identifier>.Str; self.panic("=begin $id without matching =end $id"); }
-        ]
-    | 'begin' » :: \h* [ $$ || '#' || <.sorry: "Unrecognized token after =begin"> \N* ]
-        [ .*? "\n" \h* '=' <.unsp>? 'end' » \N* || { self.panic("=begin without matching =end"); } ]
-        
-    | 'for' » :: \h* [ <identifier> || $$ || '#' || <.sorry: "Unrecognized token after =for"> \N* ]
-        [.*?  ^^ \h* $$ || .*]
-    | :: 
-        [ <?before .*? ^^ '=cut' » > <.panic: "Obsolescent pod format, please use =begin/=end instead"> ]?
-        [<alpha>||\s||<.sorry: "Illegal pod directive">]
-        \N*
-    ]
-}
-
-# suppress fancy end-of-line checking
-token embeddedblock {
-    # encapsulate braided languages
-    :temp %*LANG;
-    :my $*SIGNUM;
-    :my $*GOAL ::= '}';
-    :temp $*CURPAD;
-
-    :dba('embedded block')
-
-    <.newpad>
-    <.finishpad>
-    '{' :: [ :lang($¢.cursor_fresh(%*LANG<MAIN>)) <statementlist> ]
-    [ '}' || <.panic: "Unable to parse statement list; couldn't find right brace"> ]
-}
-
-token binints { [<.ws><binint><.ws>] ** ',' }
-
-token binint {
-    <[ 0..1 ]>+ [ _ <[ 0..1 ]>+ ]*
-}
-
-token octints { [<.ws><octint><.ws>] ** ',' }
-
-token octint {
-    <[ 0..7 ]>+ [ _ <[ 0..7 ]>+ ]*
-}
-
-token hexints { [<.ws><hexint><.ws>] ** ',' }
-
-token hexint {
-    <[ 0..9 a..f A..F ]>+ [ _ <[ 0..9 a..f A..F ]>+ ]*
-}
-
-token decints { [<.ws><decint><.ws>] ** ',' }
-
-token decint {
-    \d+ [ _ \d+ ]*
-}
-
-token integer {
-    [
-    | 0 [ b <binint>
-        | o <octint>
-        | x <hexint>
-        | d <decint>
-        | <decint>
-            <!!{ $¢.worry("Leading 0 does not indicate octal in Perl 6") }>
-        ]
-    | <decint>
-    ]
-    <!!before ['.' <?before \s | ',' | '=' | <terminator> > <.sorry: "Decimal point must be followed by digit">]? >
-}
-
-token radint {
-    [
-    | <integer>
-    | <?before ':'\d> <rad_number> <?{
-                        defined $<rad_number><intpart>
-                        and
-                        not defined $<rad_number><fracpart>
-                    }>
-    ]
-}
-
-token escale {
-    <[Ee]> <[+\-]>? <decint>
-}
-
-# careful to distinguish from both integer and 42.method
-token dec_number {
-    :dba('decimal number')
-    [
-    | $<coeff> = [              '.' <frac=.decint> ] <escale>?
-    | $<coeff> = [<int=.decint> '.' <frac=.decint> ] <escale>?
-    | $<coeff> = [<int=.decint>                    ] <escale>
-    ]
-    [ <?before '.' \d> <.sorry: "Number contains two decimal points (missing 'v' for version number?)"> ['.'\d+]+ ]?
-}
-
-token alnumint {
-    [ <[ 0..9 a..z A..Z ]>+ [ _ <[ 0..9 a..z A..Z ]>+ ]* ]
-}
-
-token rad_number {
-    ':' $<radix> = [\d+] <.unsp>?      # XXX optional dot here?
-    {}           # don't recurse in lexer
-    :dba('number in radix notation')
-    [
-    || '<'
-            [
-            | $<coeff> = [                '.' <frac=.alnumint> ]
-            | $<coeff> = [<int=.alnumint> '.' <frac=.alnumint> ]
-            | $<coeff> = [<int=.alnumint>                    ]
-            ]
-            [
-                '*' <base=.radint>
-                [ '**' <exp=.radint> || <.sorry: "Base is missing ** exponent part"> ]
-            ]?
-       '>'
-#      { make radcalc($<radix>, $<coeff>, $<base>, $<exp>) }
-    || <?before '['> <circumfix>
-    || <?before '('> <circumfix>
-    || <.panic: "Malformed radix number">
-    ]
-}
-
-token terminator:sym<)>
-    { <sym> <O(|%terminator)> }
-
-token terminator:sym<]>
-    { ']' <O(|%terminator)> }
-
-token terminator:sym<}>
-    { '}' <O(|%terminator)> }
 
 grammar P6 is STD {
 
@@ -1248,9 +1092,11 @@ grammar P6 is STD {
         :my %*LANG;
         :my $*PKGDECL ::= "";
         :my $*IN_DECL = '';
+        :my $*HAS_SELF = '';
         :my $*DECLARAND;
+        :my $*OFTYPE;
         :my $*NEWPKG;
-        :my $*NEWPAD;
+        :my $*NEWLEX;
         :my $*QSIGIL ::= '';
         :my $*IN_META = '';
         :my $*QUASIMODO;
@@ -1260,7 +1106,7 @@ grammar P6 is STD {
         :my %*MYSTERY = ();
         :my $*INVOCANT_OK;
         :my $*INVOCANT_IS;
-        :my $*CURPAD;
+        :my $*CURLEX;
         :my $*MULTINESS = '';
         :my $*SIGNUM = 0;
         :my $*MONKEY_TYPING = False;
@@ -1270,7 +1116,7 @@ grammar P6 is STD {
         :my $*IN_SUPPOSE = False;
 
         :my $*CURPKG;
-        {{
+        {
 
             %*LANG<MAIN>    = ::STD::P6 ;
             %*LANG<Q>       = ::STD::Q ;
@@ -1283,27 +1129,29 @@ grammar P6 is STD {
             self.load_setting($*SETTINGNAME);
             my $oid = $*SETTING.id;
             my $id = 'MY:file<' ~ $*FILE<name> ~ '>';
-            $*CURPAD = Stash.new(
+            $*CURLEX = Stash.new(
                 'OUTER::' => [$oid],
                 '!file' => $*FILE, '!line' => 0,
                 '!id' => [$id],
             );
-            $ALL.{$id} = $*CURPAD;
-            $*UNIT = $*CURPAD;
+            $ALL.{$id} = $*CURLEX;
+            $*UNIT = $*CURLEX;
             $ALL.<UNIT> = $*UNIT;
-            self.finishpad;
-            # $¢ = self.cursor_fresh($*CURPAD<$?LANGNAME>);
-        }}
+            self.finishlex;
+            # $¢ = self.cursor_fresh($*CURLEX<$?LANGNAME>);
+        }
+        <.unitstart>
         <statementlist>
         [ <?unitstopper> || <.panic: "Confused"> ]
         # "CHECK" time...
-        {{
+        $<LEX> = { $*CURLEX }
+        {
             $¢.explain_mystery();
             if @*WORRIES {
                 note "Potential difficulties:\n  " ~ join( "\n  ", @*WORRIES) ~ "\n";
             }
             die "Check failed\n" if $*FATALS;
-        }}
+        }
     }
 
     # Note: because of the possibility of placeholders we can't determine arity of
@@ -1314,10 +1162,10 @@ grammar P6 is STD {
     # rule.  (Could also be done in a later pass.)
 
     token pblock () {
-        :temp $*CURPAD;
+        :temp $*CURLEX;
         :dba('parameterized block')
         [<?before <.lambda> | '{' > ||
-            {{
+            {
                 if $*BORG and $*BORG.<block> {
                     if $*BORG.<name> {
                         my $m = "Function '" ~ $*BORG.<name> ~ "' needs parens to avoid gobbling block" ~ $*BORG.<culprit>.locmess;
@@ -1334,21 +1182,23 @@ grammar P6 is STD {
                 else {
                     $¢.panic("Missing block");
                 }
-            }}
+            }
         ]
         [
         | <lambda>
-            <.newpad(1)>
+            <.newlex(1)>
             <signature(1)>
             <blockoid>
             <.getsig>
         | <?before '{'>
-            <.newpad(1)>
+            <.newlex(1)>
             <blockoid>
             <.getsig>
         ]
     }
 
+    # this is a hook for subclasses
+    token unitstart { <?> }
     token lambda { '->' | '<->' }
 
     # Look for an expression followed by a required lambda.
@@ -1362,10 +1212,10 @@ grammar P6 is STD {
     }
 
     token block () {
-        :temp $*CURPAD;
+        :temp $*CURLEX;
         :dba('scoped block')
         [ <?before '{' > || <.panic: "Missing block"> ]
-        <.newpad>
+        <.newlex>
         <blockoid>
         <.checkyada>
     }
@@ -1375,8 +1225,9 @@ grammar P6 is STD {
         :temp %*LANG;
         :my $*SIGNUM;
 
-        <.finishpad>
+        <.finishlex>
         [
+        | '{YOU_ARE_HERE}' <.you_are_here>
         | :dba('block') '{' ~ '}' <statementlist> :: <.curlycheck>
         | <?terminator> <.panic: 'Missing block'>
         | <?> <.panic: "Malformed block">
@@ -1397,6 +1248,7 @@ grammar P6 is STD {
     token regex_block {
         # encapsulate braided languages
         :temp %*LANG;
+        :temp %*RX;
 
         :my $lang = %*LANG<Regex>;
         :my $*GOAL ::= '}';
@@ -1404,14 +1256,19 @@ grammar P6 is STD {
         [ <quotepair> <.ws>
             {
                 my $kv = $<quotepair>[*-1];
-                $lang = ($lang.tweak($kv.<k>, $kv.<v>)
+                $lang = ($lang.tweak(|($kv.<k>.Str => $kv.<v>))
                     or $lang.panic("Unrecognized adverb :" ~ $kv.<k> ~ '(' ~ $kv.<v> ~ ')'));
             }
         ]*
 
-        '{'
-        <nibble( $¢.cursor_fresh($lang).unbalanced('}') )>
-        [ '}' || <.panic: "Unable to parse regex; couldn't find right brace"> ]
+        [
+        | '{*}' <?{ $*MULTINESS eq 'proto' }> $<onlystar> = {1}
+        | [
+            '{'
+            <nibble( $¢.cursor_fresh($lang).unbalanced('}') )>
+            [ '}' || <.panic: "Unable to parse regex; couldn't find right brace"> ]
+          ]
+        ]
 
         <.curlycheck>
     }
@@ -1446,11 +1303,11 @@ grammar P6 is STD {
         <identifier> ':' <?before \s> <.ws>
 
         [ <?{ $¢.is_name($label = $<identifier>.Str) }>
-          <.sorry("Illegal redeclaration of '$label'")>
+          <.worry("Redeclaration of '$label'")>
         ]?
 
         # add label as a pseudo constant
-        {{ $¢.add_constant($label,self.label_id); }}
+        { $¢.add_constant($label,self.label_id); }
 
     }
 
@@ -1458,6 +1315,7 @@ grammar P6 is STD {
         :my $*endargs = -1;
         :my $*QSIGIL ::= 0;
         <!before <[\)\]\}]> >
+        <!stopper>
 
         # this could either be a statement that follows a declaration
         # or a statement that is within the block of a code declaration
@@ -1475,13 +1333,13 @@ grammar P6 is STD {
                 <.ws>
                 [
                 | <statement_mod_loop>
-                    {{
+                    {
                         my $sp = $<EXPR><statement_prefix>;
                         if $sp and $sp<sym> eq 'do' {
                            my $s = $<statement_mod_loop>[0]<sym>;
                            $¢.obs("do...$s" ,"repeat...$s");
                         }
-                    }}
+                    }
                 | <statement_mod_cond>
                     :dba('statement modifier loop')
                     [
@@ -1491,6 +1349,7 @@ grammar P6 is STD {
                 ]?
             ]
         | <?before ';'>
+        | <?before <stopper> >
         | {} <.panic: "Bogus statement">
         ]
 
@@ -1507,13 +1366,21 @@ grammar P6 is STD {
     token eat_terminator {
         [
         || ';'
-        || <?{ @*MEMOS[$¢.pos]<endstmt> }> <.ws>
-        || <?terminator>
+        || <?{ (@*MEMOS[$¢.pos]<endstmt>//0) >= 2 }> <.ws>
+        || <?before ')' | ']' | '}' >
         || $
         || <?stopper>
-        || {{ if @*MEMOS[$¢.pos]<ws> { $¢.pos = @*MEMOS[$¢.pos]<ws>; } }}   # undo any line transition
-            <.panic: "Confused">
+        || <?before <.suppose <statement_control> > > <.backup_ws> { $*HIGHWATER = -1; } <.panic: "Missing semicolon">
+        || <.panic: "Confused">
         ]
+    }
+
+    # undo any line transition
+    method backup_ws () {
+        if @*MEMOS[self.pos]<ws> {
+            return self.cursor(@*MEMOS[self.pos]<ws>);
+        }
+        return self;
     }
 
     #####################
@@ -1526,27 +1393,29 @@ grammar P6 is STD {
         [
         |<version>
         |<module_name>
-            {{
+            {
                 my $*IN_DECL = 'use';
                 my $*SCOPE = 'use';
                 $longname = $<module_name>[*-1]<longname>;
-                $¢.do_need($longname);
-            }}
+                $¢.do_need($longname<name>);
+            }
         ] ** ','
     }
 
     token statement_control:import {
-        :my $longname;
         :my $*IN_DECL = 'use';
+        :my $*HAS_SELF = '';
         :my $*SCOPE = 'use';
         <sym> <.ws>
         <term>
         [
         || <.spacey> <arglist>
-            {{
+            {
+                my %*MYSTERY;
                 $¢.do_import($<term>, $<arglist>);
-            }}
-        || {{ $¢.do_import($<term>, ''); }}
+                $¢.explain_mystery();
+            }
+        || { $¢.do_import($<term>, ''); }
         ]
         <.ws>
     }
@@ -1555,32 +1424,37 @@ grammar P6 is STD {
         :my $longname;
         :my $*IN_DECL = 'use';
         :my $*SCOPE = 'use';
+        :my $*HAS_SELF = '';
+        :my %*MYSTERY;
         <sym> <.ws>
         [
         | <version>
         | <module_name>
-            {{
+            {
                 $longname = $<module_name><longname>;
                 if $longname.Str eq 'MONKEY_TYPING' {
                     $*MONKEY_TYPING = True;
                 }
-            }}
+            }
             [
             || <.spacey> <arglist>
-                {{
-                    $¢.do_use($longname, $<arglist>);
-                }}
-            || {{ $¢.do_use($longname, ''); }}
+                {
+                    $¢.do_use($longname<name>, $<arglist>);
+                }
+            || { $¢.do_use($longname<name>, ''); }
             ]
         ]
         <.ws>
+        <.explain_mystery>
     }
 
 
     token statement_control:no {
+        :my %*MYSTERY;
         <sym> <.ws>
         <module_name>[<.spacey><arglist>]?
         <.ws>
+        <.explain_mystery>
     }
 
 
@@ -1590,11 +1464,11 @@ grammar P6 is STD {
         [
             [
             | 'else'\h*'if' <.sorry: "Please use 'elsif'">
-            | 'elsif'<?spacey> <elsif=.xblock>
+            | 'elsif'<?keyspace> <elsif=.xblock>
             ]
         ]*
         [
-            'else'<?spacey> <else=.pblock>
+            'else'<?keyspace> <else=.pblock>
         ]?
     }
 
@@ -1602,7 +1476,7 @@ grammar P6 is STD {
     token statement_control:unless {
         <sym> :s
         <xblock>
-        [ <!before 'else'> || <.panic: "unless does not take \"else\" in Perl 6; please rewrite using \"if\""> ]
+        [ <!before 'else'> || <.panic: "\"unless\" does not take \"else\" in Perl 6; please rewrite using \"if\""> ]
     }
 
 
@@ -1623,10 +1497,10 @@ grammar P6 is STD {
     token statement_control:repeat {
         <sym> :s
         [
-            | $<wu>=['while'|'until']<.spacey>
+            | $<wu>=['while'|'until']<.keyspace>
               <xblock>
             | <pblock>
-              $<wu>=['while'|'until'][<.spacey>||<.panic: "Whitespace required after keyword">] <EXPR>
+              $<wu>=['while'|'until'][<.keyspace>||<.panic: "Whitespace required after keyword">] <EXPR>
         ]
     }
 
@@ -1639,7 +1513,7 @@ grammar P6 is STD {
                 <e3=.EXPR>?
             ')'||<.panic: "Malformed loop spec">]
             [ <?before '{' > <.sorry: "Whitespace required before block"> ]?
-        )? <.ws>
+        )? :s
         <block>
     }
 
@@ -1653,22 +1527,18 @@ grammar P6 is STD {
         <xblock>
     }
 
-    token statement_control:foreach {
-        <sym> <.obs("'foreach'", "'for'")>
-    }
-
     token statement_control:given {
         <sym> :s
         <xblock>
     }
     token statement_control:when {
         <sym> :s
-        <?before ('True'|'False')»<.dumbsmart($0.Str)>>?
+        <?dumbsmart>
         <xblock>
     }
     rule statement_control:default {<sym> <block> }
 
-    token statement_prefix:BEGIN   { <sym> <blast> }
+    token statement_prefix:BEGIN   { :my %*MYSTERY; <sym> <blast> <.explain_mystery> }
     token statement_prefix:CHECK   { <sym> <blast> }
     token statement_prefix:INIT    { <sym> <blast> }
     token statement_prefix:START   { <sym> <blast> }
@@ -1696,7 +1566,7 @@ grammar P6 is STD {
 
     rule statement_mod_cond:if     {<sym> <modifier_expr> }
     rule statement_mod_cond:unless {<sym> <modifier_expr> }
-    rule statement_mod_cond:when   {<sym> <?before \h*('True'|'False')»<.dumbsmart($0.Str)>>? <modifier_expr> }
+    rule statement_mod_cond:when   {<sym> <?dumbsmart> <modifier_expr> }
 
     rule statement_mod_loop:while {<sym> <modifier_expr> }
     rule statement_mod_loop:until {<sym> <modifier_expr> }
@@ -1740,7 +1610,7 @@ grammar P6 is STD {
             <.unsp>?
             $<shape> = [
             | '(' ~ ')' <signature>
-                {{
+                {
                     given substr($var,0,1) {
                         when '&' {
                             $¢.sorry("The () shape syntax in routine declarations is reserved (maybe use :() to declare a longname?)");
@@ -1755,7 +1625,7 @@ grammar P6 is STD {
                             $¢.sorry("The () shape syntax in variable declarations is reserved");
                         }
                     }
-                }}
+                }
             | :dba('shape definition') '[' ~ ']' <semilist>
             | :dba('shape definition') '{' ~ '}' <semilist> <.curlycheck>
             | <?before '<'> <postcircumfix>
@@ -1764,16 +1634,18 @@ grammar P6 is STD {
         <.ws>
 
         <trait>*
+        <post_constraint>*
         <.getdecl>
     }
 
-    rule scoped ($*SCOPE) {
+    token scoped ($*SCOPE) {
         :dba('scoped declarator')
+        <.ws>
         [
         | <declarator>
         | <regex_declarator>
         | <package_declarator>
-        | [<typename> ]+
+        | [<typename><.ws>]+
             {
                 my $t = $<typename>;
                 @$t > 1 and $¢.sorry("Multiple prefix constraints not yet supported");
@@ -1781,13 +1653,13 @@ grammar P6 is STD {
             }
             <multi_declarator>
         | <multi_declarator>
-        ]
-        || <?before <[A..Z]>><longname>{{
+        ] <.ws>
+        || <?before <[A..Z]>><longname>{
                 my $t = $<longname>.Str;
                 if not $¢.is_known($t) {
                     $¢.sorry("In $*SCOPE declaration, typename '$t' must be predeclared (or marked as declarative with :: prefix)");
                 }
-            }}
+            }
             <!> # drop through
         || <.panic: "Malformed $*SCOPE">
     }
@@ -1796,10 +1668,20 @@ grammar P6 is STD {
     token scope_declarator:our       { <sym> <scoped('our')> }
     token scope_declarator:anon      { <sym> <scoped('anon')> }
     token scope_declarator:state     { <sym> <scoped('state')> }
-    token scope_declarator:has       { <sym> <scoped('has')> }
     token scope_declarator:augment   { <sym> <scoped('augment')> }
     token scope_declarator:supersede { <sym> <scoped('supersede')> }
-
+    token scope_declarator:has       {
+        :my $*HAS_SELF = 'partial';
+        <sym> {
+            given $*PKGDECL {
+                when 'class'   {} # XXX to be replaced by MOP queries
+                when 'grammar' {}
+                when 'role'    {}
+                default { $¢.worry("'has' declaration outside of class") }
+            }
+        }
+        <scoped('has')>
+    }
 
     token package_declarator:class {
         :my $*PKGDECL ::= 'class';
@@ -1839,7 +1721,12 @@ grammar P6 is STD {
     token package_declarator:require {   # here because of declarational aspects
         <sym> <.ws>
         [
-        || <module_name> <EXPR>?
+        || <module_name> <.ws> <EXPR>?
+            {
+                my $*IN_DECL = 'use';
+                my $*SCOPE = 'use';
+                $¢.add_name($<module_name><longname><name>.Str);
+            }
         || <EXPR>
         ]
     }
@@ -1849,24 +1736,25 @@ grammar P6 is STD {
         <module_name>
     }
 
-    token package_declarator:does {
+    token package_declarator:sym<also> {
         <sym>:s
-        <typename>
+        [ <trait>+ || <.panic: "No valid trait found after also"> ]
     }
 
     rule package_def {
         :my $longname;
         :my $*IN_DECL = 'package';
+        :my $*HAS_SELF = '';
         :my $*DECLARAND;
         :my $*NEWPKG;
-        :my $*NEWPAD;
-        :my $outer = $*CURPAD;
+        :my $*NEWLEX;
+        :my $outer = $*CURLEX;
         :temp $*CURPKG;
-        :temp $*CURPAD;
+        :temp $*CURLEX;
         { $*SCOPE ||= 'our'; }
         [
-            [ <longname> { $longname = $<longname>[0]; $¢.add_name($longname.Str); } ]?
-            <.newpad>
+            [ <longname> { $longname = $<longname>[0]; $¢.add_name($longname<name>.Str); } ]?
+            <.newlex>
             [ :dba('generic role')
                 <?{ ($*PKGDECL//'') eq 'role' }>
                 '[' ~ ']' <signature>
@@ -1877,7 +1765,7 @@ grammar P6 is STD {
             [
             || <?before '{'>
                 [
-                {{
+                {
                     # figure out the actual full package name (nested in outer package)
                     if $longname and $*NEWPKG {
                         my $shortname = $longname.<name>.Str;
@@ -1891,35 +1779,29 @@ grammar P6 is STD {
                         }
                     }
                     $*begin_compunit = 0;
-                }}
+                    $*UNIT<$?LONGNAME> ||= $longname ?? $longname<name>.Str !! '';
+                }
+                { $*IN_DECL = ''; }
                 <blockoid>
                 <.checkyada>
                 ]
             || <?before ';'>
                 [
                 || <?{ $*begin_compunit }>
-                    {{
+                    {
                         $longname orelse $¢.panic("Compilation unit cannot be anonymous");
-                        $outer == $*UNIT or $¢.panic("Semicolon form of " ~ $*PKGDECL ~ " definition not allowed in subscope;\n  please use block form");
+                        $outer === $*UNIT or $¢.panic("Semicolon form of " ~ $*PKGDECL ~ " definition not allowed in subscope;\n  please use block form");
+                        $*PKGDECL eq 'package' and $¢.panic("Semicolon form of package definition indicates a Perl 5 module; unfortunately,\n  STD doesn't know how to parse Perl 5 code yet");
                         my $shortname = $longname.<name>.Str;
                         $*CURPKG = $*NEWPKG // $*CURPKG.{$shortname ~ '::'};
                         $*begin_compunit = 0;
 
                         # XXX throws away any role sig above
-                        $*CURPAD = $outer;
+                        $*CURLEX = $outer;
 
-                        # throw out null core when compiling the real CORE
-                        if $shortname eq 'CORE' and $*CORE.id ~~ /NULL/ {
-                            $*UNIT<OUTER::> = [''];
-                            $*CORE = $*UNIT;
-                            $*SETTING = $*UNIT;
-                            $ALL = {
-                                CORE => $*UNIT,
-                                SETTING => $*UNIT,
-                                $*UNIT.id => $*UNIT,
-                            };
-                        }
-                    }}
+                        $*UNIT<$?LONGNAME> = $longname<name>.Str;
+                    }
+                    { $*IN_DECL = ''; }
                     <statementlist>     # whole rest of file, presumably
                 || <.panic: "Too late for semicolon form of " ~ $*PKGDECL ~ " definition">
                 ]
@@ -1929,10 +1811,13 @@ grammar P6 is STD {
     }
 
     token declarator {
+        :my $*LEFTSIGIL = '';
         [
-        | <variable_declarator>
+        | '\\' <defterm> <.ws>
+            [ <initializer> || <.sorry("Term definition requires an initializer")> ]
+        | <variable_declarator> <initializer>?
             [ <?before <.ws>','<.ws> { @*MEMOS[$¢.pos]<declend> = $*SCOPE; }> ]?
-        | '(' ~ ')' <signature> <trait>*
+        | '(' ~ ')' <signature> <trait>* <initializer>?
         | <routine_declarator>
         | <regex_declarator>
         | <type_declarator>
@@ -1941,29 +1826,29 @@ grammar P6 is STD {
 
     token multi_declarator:multi {
         :my $*MULTINESS = 'multi';
-        <sym> <.ws> [ <declarator> || <routine_def> || <.panic: 'Malformed multi'> ]
+        <sym> <.ws> [ <declarator> || <routine_def('multi')> || <.panic: 'Malformed multi'> ]
     }
     token multi_declarator:proto {
         :my $*MULTINESS = 'proto';
-        <sym> <.ws> [ <declarator> || <routine_def> || <.panic: 'Malformed proto'> ]
+        <sym> <.ws> [ <declarator> || <routine_def('proto')> || <.panic: 'Malformed proto'> ]
     }
     token multi_declarator:only {
         :my $*MULTINESS = 'only';
-        <sym> <.ws> [ <declarator> || <routine_def> || <.panic: 'Malformed only'> ]
+        <sym> <.ws> [ <declarator> || <routine_def('only')> || <.panic: 'Malformed only'> ]
     }
     token multi_declarator:null {
         :my $*MULTINESS = '';
         <declarator>
     }
 
-    token routine_declarator:sub       { <sym> <routine_def> }
-    token routine_declarator:method    { <sym> <method_def> }
-    token routine_declarator:submethod { <sym> <method_def> }
+    token routine_declarator:sub       { <sym> <routine_def('sub')> }
+    token routine_declarator:method    { <sym> <method_def('method')> }
+    token routine_declarator:submethod { <sym> <method_def('submethod')> }
     token routine_declarator:macro     { <sym> <macro_def> }
 
-    token regex_declarator:regex { <sym>       <regex_def> }
-    token regex_declarator:token { <sym>       <regex_def> }
-    token regex_declarator:rule  { <sym>       <regex_def> }
+    token regex_declarator:regex { <sym> <regex_def('regex', :!r,:!s)> }
+    token regex_declarator:token { <sym> <regex_def('token', :r,:!s)> }
+    token regex_declarator:rule  { <sym> <regex_def('rule',  :r,:s)> }
 
     rule multisig {
         :my $signum = 0;
@@ -1976,22 +1861,32 @@ grammar P6 is STD {
 
     method checkyada {
         try {
-            my $startsym = self.<blockoid><statementlist><statement>[0]<EXPR><sym> // '';
-            if $startsym eq '...' or $startsym eq '!!!' or $startsym eq '???' {
-                $*DECLARAND<stub> = 1;
+            my $statements = self.<blockoid><statementlist><statement>;
+            my $startsym = $statements[0]<EXPR><sym> // '';
+            given $startsym {
+                when '...' { $*DECLARAND<stub> = 1 }
+                when '!!!' { $*DECLARAND<stub> = 1 }
+                when '???' { $*DECLARAND<stub> = 1 }
+                when '*' {
+                    if $*MULTINESS eq 'proto' and $statements.elems == 1 {
+                        self.<blockoid>:delete;
+                        self.<onlystar> = 1;
+                    }
+                }
             }
-        };
+        }
         return self;
     }
 
-    rule routine_def () {
-        :temp $*CURPAD;
-        :my $*IN_DECL = 'routine';
+    rule routine_def ($d) {
+        :temp $*CURLEX;
+        :my $*IN_DECL = $d;
         :my $*DECLARAND;
         [
             [ $<sigil>=['&''*'?] <deflongname>? | <deflongname> ]?
-            <.newpad(1)>
+            <.newlex(1)>
             [ <multisig> | <trait> ]*
+            [ <!before '{'> <.panic: "Malformed block"> ]?
             <!{
                 $*IN_DECL = '';
             }>
@@ -2002,26 +1897,35 @@ grammar P6 is STD {
         ] || <.panic: "Malformed routine">
     }
 
-    rule method_def () {
-        :temp $*CURPAD;
-        :my $*IN_DECL = 'method';
+    rule method_def ($d) {
+        :temp $*CURLEX;
+        :my $*IN_DECL = $d;
         :my $*DECLARAND;
-        <.newpad(1)>
+        :my $*HAS_SELF = $d eq 'submethod' ?? 'partial' !! 'complete';
+        <.newlex(1)>
         [
             [
-            | <[ ! ^ ]>?<longname> [ <multisig> | <trait> ]*
+            | $<type>=[<[ ! ^ ]>?]<longname> [ <multisig> | <trait> ]*
             | <multisig> <trait>*
-            | <sigil> '.'
+            | <sigil>'.':!s
                 :dba('subscript signature')
                 [
                 | '(' ~ ')' <signature>
                 | '[' ~ ']' <signature>
                 | '{' ~ '}' <signature> # don't need curlycheck here
                 | <?before '<'> <postcircumfix>
-                ]
+                ]:s
                 <trait>*
             | <?>
             ]
+            {
+                given $*PKGDECL {
+                    when 'class'   {} # XXX to be replaced by MOP queries
+                    when 'grammar' {}
+                    when 'role'    {}
+                    default {$¢.worry("'$d' declaration outside of class") if ($*SCOPE || 'has') eq 'has' && $<longname> }
+                }
+            }
             { $*IN_DECL = ''; }
             <blockoid>:!s
             <.checkyada>
@@ -2030,16 +1934,27 @@ grammar P6 is STD {
         ] || <.panic: "Malformed method">
     }
 
-    rule regex_def () {
-        :temp $*CURPAD;
-        :my $*IN_DECL = 'regex';
+    rule regex_def ($d, :$r, :$s) {
+        :temp $*CURLEX;
+        :my $*IN_DECL = $d;
+        :temp %*RX;
         :my $*DECLARAND;
+        :my $*HAS_SELF = 'complete';
+        { %*RX<s> = $s; %*RX<r> = $r; }
         [
             [ '&'<deflongname>? | <deflongname> ]?
-            <.newpad(1)>
+            <.newlex(1)>
             [ [ ':'?'(' <signature(1)> ')'] | <trait> ]*
+            [ <!before '{'> <.panic: "Malformed block"> ]?
+            {
+                given $*PKGDECL {
+                    when 'grammar' {} # XXX to be replaced by MOP queries
+                    when 'role'    {}
+                    default { $¢.worry("'$d' declaration outside of grammar") if ($*SCOPE || 'has') eq 'has' && $<deflongname>[0] }
+                }
+            }
             { $*IN_DECL = ''; }
-            <.finishpad>
+            <.finishlex>
             <regex_block>:!s
             <.getsig>
             <.getdecl>
@@ -2047,16 +1962,14 @@ grammar P6 is STD {
     }
 
     rule macro_def () {
-        :temp $*CURPAD;
+        :temp $*CURLEX;
         :my $*IN_DECL = 'macro';
         :my $*DECLARAND;
         [
             [ '&'<deflongname>? | <deflongname> ]?
-            <.newpad(1)>
+            <.newlex(1)>
             [ <multisig> | <trait> ]*
-            <!{
-                $*IN_DECL = '';
-            }>
+            [ <!before '{'> <.panic: "Malformed block"> ]?
             { $*IN_DECL = ''; }
             <blockoid>:!s
             <.checkyada>
@@ -2074,32 +1987,34 @@ grammar P6 is STD {
     }
 
     token trait_mod:is {
-        <sym>:s <longname><circumfix>?  # e.g. context<rw> and Array[Int]
-        {{
+        <sym>:s [
+            <longname><circumfix>?  # e.g. context<rw> and Array[Int]
+            || <.panic: "Invalid trait name">
+        ]
+        {
             if $*DECLARAND {
                 my $traitname = $<longname>.Str;
                 # XXX eventually will use multiple dispatch
                 $*DECLARAND{$traitname} = self.gettrait($traitname, $<circumfix>);
             }
-        }}
+        }
     }
     token trait_mod:hides {
-        <sym>:s <module_name>
+        <sym>:s [<typename> || <.panic: "Invalid class name">]
     }
     token trait_mod:does {
         :my $*PKGDECL ::= 'role';
-        <sym>:s <module_name>
+        <sym>:s [<typename> || <.panic: "Invalid role name">]
     }
     token trait_mod:will {
-        <sym>:s <identifier> <pblock>
+        <sym>:s [<identifier> <pblock> || <.panic: "Invalid phaser">]
     }
 
     token trait_mod:of {
-        ['of'|'returns']:s <typename>
-        [ <?{ $*OFTYPE }> <.sorry("Extra 'of' type; already declared as type " ~ $*OFTYPE.Str)> ]?
-        { $*OFTYPE = $<typename>; }
+        ['of'|'returns']:s [<typename> || <.panic: "Invalid type name">]
+        [ <?{ $*DECLARAND<of> }> <.sorry("Extra 'of' type; already declared as type " ~ $*DECLARAND<of>.Str)> ]?
+        { $*DECLARAND<of> = $<typename>; }
     }
-    token trait_mod:as      { <sym>:s <typename> }
     token trait_mod:handles { <sym>:s <term> }
 
     #########
@@ -2127,12 +2042,13 @@ grammar P6 is STD {
 
     token termish {
         :my $*SCOPE = "";
+        :my $*MULTINESS = "";
         :my $*OFTYPE;
         :my $*VAR;
         :dba('prefix or term')
         [
-        | <PRE> [ <!{ my $p = $<PRE>; my @p = @$p; @p[*-1]<O><term> and $<term> = pop @$p }> <PRE> ]*
-            [ <?{ $<term> }> || <term> || <.panic("Prefix requires an argument")> ]
+        | <PRE> [ <!{ my $p = $<PRE>; my @p = @$p; @p[*-1].dump; @p[*-1]<O><term> and $<term> = pop @$p }> <PRE> ]*
+            [ <?{ $<term> }> || <term> ||  <.panic("Prefix requires an argument")> ]
         | <term>
         ]
 
@@ -2141,8 +2057,8 @@ grammar P6 is STD {
         [
         || <?{ $*QSIGIL }>
             [
-            || <?{ $*QSIGIL eq '$' }> [ [<!before '\\'> <POST>]+! <?after <[ \] } > ) ]> > ]?
-            ||                          [<!before '\\'> <POST>]+! <?after <[ \] } > ) ]> > 
+            || <?{ $*QSIGIL eq '$' }> [ [<!before '\\'> <POST>]+! <?after <[ \] } > ) ]> > || { $<POST> = [] } ]
+            ||                          [<!before '\\'> <POST>]*! <?after <[ \] } > ) ]> > 
             || { $*VAR = 0; }
             ]
         || <!{ $*QSIGIL }>
@@ -2201,10 +2117,16 @@ grammar P6 is STD {
         | :dba('signature') '(' ~ ')' <fakesignature>
         | <coloncircumfix('')>
             { $key = ""; $value = $<coloncircumfix>; }
-        | $<var> = (<sigil> {} <twigil>? <desigilname>)
-            { $key = $<var><desigilname>.Str; $value = $<var>; }
+        | $<var> = (
+                <sigil> {}
+                [
+                | <twigil>? <desigilname>
+                | '<' <desigilname> '>'
+                ]
+            )
+            { $key = $<var><desigilname>.Str; $value = $<var>; $¢.check_variable($value); }
         ]
-        { $<k> = $key; $<v> = $value; }
+        $<k> = {$key} $<v> = {$value}
     }
 
     # Most of these special variable rules are there simply to catch old p5 brainos
@@ -2215,11 +2137,11 @@ grammar P6 is STD {
 
     token special_variable:sym<$!{ }> {
         '$!' '{' ~ '}' [<identifier> | <statementlist>]
-        {{
-            my $all = substr($*ORIG, self.pos, $¢.pos - self.pos);
+        {
+            my $all = substr(self.orig, self.pos, $¢.pos - self.pos);
             my ($inside) = $all ~~ m!^...\s*(.*?)\s*.$!;
             $¢.obs("Perl 5's $all construct", "a smartmatch like \$! ~~ $inside" );
-        }}
+        }
     }
 
     token special_variable:sym<$/> {
@@ -2408,12 +2330,13 @@ grammar P6 is STD {
 
     regex special_variable:sym<${ }> {
         <sigil> '{' {} $<text>=[.*?] '}'
-        {{
+        {
             my $sigil = $<sigil>.Str;
             my $text = $<text>.Str;
             my $bad = $sigil ~ '{' ~ $text ~ '}';
             $text = $text - 1 if $text ~~ /^\d+$/;
             if $text !~~ /^(\w|\:)+$/ {
+                return () if $*QSIGIL;
                 $¢.obs($bad, $sigil ~ '(' ~ $text ~ ')');
             }
             elsif $*QSIGIL {
@@ -2422,7 +2345,7 @@ grammar P6 is STD {
             else {
                 $¢.obs($bad, $sigil ~ $text);
             }
-        }} # always fails, don't need curlycheck here
+        } # always fails, don't need curlycheck here
     }
 
     token special_variable:sym<$[> {
@@ -2472,7 +2395,7 @@ grammar P6 is STD {
     }
 
     token special_variable:sym['$<'] {
-        <sym> :: <!before \s* \w+ \s* '>' >
+        <sym> <?before \h* <[ = , ; ? : ! ) \] } ]> <!before \S* '>'> >
         <.obs('$< variable', '$*UID')>
     }
 
@@ -2495,8 +2418,13 @@ grammar P6 is STD {
 
     token desigilname {
         [
-        | <?before '$' > <variable> { $*VAR = $<variable> }
-        | <?before <[\@\%\&]> <sigil>* \w > <.panic: "Invalid hard reference syntax">
+        | <?before <sigil> <sigil> > <VAR=variable> 
+        | <?before <sigil> >
+            [ <?{ $*IN_DECL }> <.panic: "Cannot declare an indirect variable name"> ]?
+            <variable> {
+                $*VAR = $<variable>;
+                self.check_variable($*VAR);
+            }
         | <longname>
         ]
     }
@@ -2522,18 +2450,19 @@ grammar P6 is STD {
         || [
             | <sigil> <twigil>? <desigilname> { $name = $<desigilname>.Str }
             | <special_variable>
-            | <sigil> <index=.decint>
+            | <sigil> <index=.decint> [<?{ $*IN_DECL }> <.panic: "Cannot declare a numeric variable">]?
             # Note: $() can also parse as contextualizer in an expression; should have same effect
-            | <sigil> <?before '<' | '('> <postcircumfix>
+            | <sigil> <?before '<'> <postcircumfix> [<?{ $*IN_DECL }> <.panic: "Cannot declare a match variable">]?
+            | <sigil> <?before '('> <postcircumfix> [<?{ $*IN_DECL }> <.panic: "Cannot declare a contextualizer">]?
             | <sigil> <?{ $*IN_DECL }>
-            | <?> {{
+            | <?> {
                 if $*QSIGIL {
                     return ();
                 }
                 else {
                     $¢.sorry("Non-declarative sigil is missing its name");
                 }
-              }}
+              }
             ]
         ]
 
@@ -2545,19 +2474,27 @@ grammar P6 is STD {
 
 
 
+    token defterm {     # XXX this is probably too general
+        :dba('new term to be defined')
+        <identifier>
+        [
+        | <colonpair>+ { $¢.add_categorical(substr(self.orig, self.pos, $¢.pos - self.pos)); }
+        | { $¢.add_name($<identifier>.Str); }
+        ]
+    }
+
     token deflongname {
         :dba('new name to be defined')
         <name>
         [
-        | <colonpair>+ { $¢.add_macro($<name>) if $*IN_DECL; }
+        | <colonpair>+ { $¢.add_categorical(substr(self.orig, self.pos, $¢.pos - self.pos)) if $*IN_DECL; }
         | { $¢.add_routine($<name>.Str) if $*IN_DECL; }
         ]
     }
 
     token subshortname {
         [
-        | <category>
-            [ <colonpair>+ { $¢.add_macro($<category>) if $*IN_DECL; } ]?
+        | <category> <colonpair>+
         | <desigilname>
         ]
     }
@@ -2575,7 +2512,7 @@ grammar P6 is STD {
         [
         | '::?'<identifier>                 # parse ::?CLASS as special case
         | <longname>
-          <?{{
+          <?{
             my $longname = $<longname>.Str;
             if substr($longname, 0, 2) eq '::' {
                 $¢.add_my_name(substr($longname, 2));
@@ -2583,11 +2520,12 @@ grammar P6 is STD {
             else {
                 $¢.is_name($longname)
             }
-          }}>
+          }>
         ]
         # parametric type?
         <.unsp>? [ <?before '['> <param=.postcircumfix> ]?
         <.unsp>? [ <?before '{'> <whence=.postcircumfix> ]?
+        <.unsp>? [ <?before '('> <accept=.postcircumfix> ]?
         [<.ws> 'of' <.ws> <typename> ]?
     }
 
@@ -2603,11 +2541,10 @@ grammar P6 is STD {
         ]
     }
 
-    # <strtonum> is (we hope) used only by Str --> Num conversions
-    #  (such as those done dwimmily by quotewords)
-    token strtonum:rational { <[+\-]>?<nu=.integer>'/'<de=.integer> }
-    token strtonum:complex { [<[+\-]>?<re=.number>]? <[+\-]><im=.number>'\\'?'i' }
-    token strtonum:number { <[+\-]>?<number> }
+    # <numeric> is used by Str.Numeric conversions such as those done by val()
+    token numeric:rational { <[+\-]>?<nu=.integer>'/'<de=.integer> }
+    token numeric:complex { [<[+\-]>?<re=.number>]? <[+\-]><im=.number>'\\'?'i' }
+    token numeric:number { <[+\-]>?<number> }
 
     ##########
     # Quotes #
@@ -2621,6 +2558,7 @@ grammar P6 is STD {
         $start <left=.nibble($lang)> [ $stop || <.panic: "Couldn't find terminator $stop"> ]
         [ <?{ $start ne $stop }>
             <.ws>
+            [ <?[ \[ \{ \( \< ]> <.obs('brackets around replacement', 'assignment syntax')> ]?
             [ <infixish> || <panic: "Missing assignment operator"> ]
             [ <?{ $<infixish>.Str eq '=' || $<infixish>.<infix_postfix_meta_operator> }> || <.panic: "Malformed assignment operator"> ]
             <.ws>
@@ -2678,7 +2616,7 @@ grammar P6 is STD {
         :my $qm;
         'qq'
         [
-        | <quote_mod> » <!before '('> { $qm = $<quote_mod>.Str } <.ws> <quibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:qq).tweak($qm => 1))>
+        | <quote_mod> » <!before '('> { $qm = $<quote_mod>.Str } <.ws> <quibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:qq).tweak(|($qm => 1)))>
         | » <!before '('> <.ws> <quibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:qq))>
         ]
     }
@@ -2686,7 +2624,7 @@ grammar P6 is STD {
         :my $qm;
         'q'
         [
-        | <quote_mod> » <!before '('> { $qm = $<quote_mod>.Str } <quibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:q).tweak($qm => 1))>
+        | <quote_mod> » <!before '('> { $qm = $<quote_mod>.Str } <quibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:q).tweak(|($qm => 1)))>
         | » <!before '('> <.ws> <quibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:q))>
         ]
     }
@@ -2695,7 +2633,7 @@ grammar P6 is STD {
         :my $qm;
         'Q'
         [
-        | <quote_mod> » <!before '('> { $qm = $<quote_mod>.Str } <quibble($¢.cursor_fresh( %*LANG<Q> ).tweak($qm => 1))>
+        | <quote_mod> » <!before '('> { $qm = $<quote_mod>.Str } <quibble($¢.cursor_fresh( %*LANG<Q> ).tweak(|($qm => 1)))>
         | » <!before '('> <.ws> <quibble($¢.cursor_fresh( %*LANG<Q> ))>
         ]
     }
@@ -2746,41 +2684,39 @@ grammar P6 is STD {
         <!old_tr_mods>
     }
 
-    token quote:y {
-        <sym> »
-        # could be defined as a function or constant
-        <!{ self.is_known('&y') or self.is_known('y') }>
-        <!before '('> <?before \h*\W>
-        <.obs('y///','tr///')>
-    }
-
     token old_rx_mods {
         <!after \s>
-        (< i g s m x c e >+) 
-        {{
+        (\w+) 
+        {
             given $0.Str {
                 $_ ~~ /i/ and $¢.worryobs('/i',':i');
                 $_ ~~ /g/ and $¢.worryobs('/g',':g');
-                $_ ~~ /s/ and $¢.worryobs('/s','^^ and $$ anchors');
-                $_ ~~ /m/ and $¢.worryobs('/m','. or \N');
+                $_ ~~ /m/ and $¢.worryobs('/m','^^ and $$ anchors');
+                $_ ~~ /s/ and $¢.worryobs('/s','. or \N');
                 $_ ~~ /x/ and $¢.worryobs('/x','normal default whitespace');
                 $_ ~~ /c/ and $¢.worryobs('/c',':c or :p');
                 $_ ~~ /e/ and $¢.worryobs('/e','interpolated {...} or s{} = ... form');
+                $_ ~~ /r/ and $¢.worryobs('/c','.subst');
+                $_ ~~ /a/ and $¢.worryobs('/a','Unicode');
+                $_ ~~ /d/ and $¢.worryobs('/d','Unicode');
+                $_ ~~ /l/ and $¢.worryobs('/l','Unicode');
+                $_ ~~ /u/ and $¢.worryobs('/l','normal regex');
+                $_ ~~ /p/ and $¢.worryobs('/c','substr or /$<PREMATCH>=[...] <(...)> $<POSTMATCH>=[...]');
                 $¢.obs('suffix regex modifiers','prefix adverbs');
             }
-        }}
+        }
     }
 
     token old_tr_mods {
         (< c d s ] >+) 
-        {{
+        {
             given $0.Str {
                 $_ ~~ /c/ and $¢.worryobs('/c',':c');
                 $_ ~~ /d/ and $¢.worryobs('/g',':d');
                 $_ ~~ /s/ and $¢.worryobs('/s',':s');
                 $¢.obs('suffix transliteration modifiers','prefix adverbs');
             }
-        }}
+        }
     }
 
     token quote:quasi {
@@ -2813,36 +2749,45 @@ grammar P6 is STD {
     rule param_sep { [','|':'|';'|';;'] }
 
     token fakesignature() {
-        :temp $*CURPAD;
-        <.newpad>
+        :temp $*CURLEX;
+        :my $*DECLARAND;
+        <.newlex>
         <signature>
     }
 
-    token signature ($padsig = 0) {
+    token signature ($lexsig = 0) {
         :my $*IN_DECL = 'sig';
         :my $*zone = 'posreq';
         :my $startpos = self.pos;
         :my $*MULTINESS = 'only';
-        :my $*SIGNUM = $padsig;
+        :my $*SIGNUM = $lexsig;
         <.ws>
         [
-        | <?before '-->' | ')' | ']' | '{' | ':'\s >
-        | [ <parameter> || <.panic: "Malformed parameter"> ]
-        ] ** <param_sep>
+        | '\|' [ <defterm> || <.panic: "\\| signature must contain one identifier"> ]
+            <.ws> [ <?before '-->' | ')' | ']' > || <.panic: "\\| signature may contain only an identifier"> ]
+        |   [
+            | <?before '-->' | ')' | ']' | '{' | ':'\s | ';;' >
+            | [ <parameter> || <.panic: "Malformed parameter"> ]
+            ] ** <param_sep>
+        ]
         <.ws>
         { $*IN_DECL = ''; }
-        [ '-->' <.ws> <typename> <.ws>
-            [ <?{ $*OFTYPE }> <.sorry("Extra 'of' type; already declared as type " ~ $*OFTYPE.Str)> ]?
-            { $*OFTYPE = $<typename>[0]; }
+        [ '-->' <.ws>
+            [
+            || <type_constraint>
+            || <longname> <.panic("Typename " ~ $<longname>[0].Str ~ " must be predeclared")>
+            || <.panic: "No type found after -->">
+            ]
+            <.ws>
         ]?
-        {{
+        {
             $*LEFTSIGIL = '@';
-            if $padsig {
-                $*CURPAD.<$?SIGNATURE> ~= '|' if $padsig > 1;
-                $*CURPAD.<$?SIGNATURE> ~= '(' ~ substr($*ORIG, $startpos, $¢.pos - $startpos) ~ ')';
-                $*CURPAD.<!NEEDSIG>:delete;
+            if $lexsig {
+                $*CURLEX.<$?SIGNATURE> ~= '|' if $lexsig > 1;
+                $*CURLEX.<$?SIGNATURE> ~= '(' ~ substr(self.orig, $startpos, $¢.pos - $startpos) ~ ')';
+                $*CURLEX.<!NEEDSIG>:delete;
             }
-        }}
+        }
     }
 
     token type_declarator:subset {
@@ -2851,8 +2796,9 @@ grammar P6 is STD {
         <sym> :s
         [
             [ <longname> { $¢.add_name($<longname>[0].Str); } ]?
+            { $*IN_DECL = ''; }
             <trait>*
-            [where <EXPR(item %chaining)> ]?    # (EXPR can parse multiple where clauses)
+            [where <EXPR(item %item_assignment)> ]?    # (EXPR can parse multiple where clauses)
         ] || <.panic: "Malformed subset">
     }
 
@@ -2861,7 +2807,7 @@ grammar P6 is STD {
         :my $*DECLARAND;
         <sym> <.ws>
         [
-        | <name=identifier> { $¢.add_name($<name>.Str); }
+        | <name=longname> { $¢.add_name($<name>.Str); }
         | <name=variable> { $¢.add_variable($<name>.Str); }
         | <?>
         ]
@@ -2877,9 +2823,9 @@ grammar P6 is STD {
         <sym> <.ws>
 
         [
-        | <identifier> { $¢.add_name($<identifier>.Str); }
+        | '\\'? <defterm>
         | <variable> { $¢.add_variable($<variable>.Str); }
-        | <?>
+        | {} <.sorry: "Missing symbol in constant declaration">
         ]
         { $*IN_DECL = ''; }
         <.ws>
@@ -2887,21 +2833,35 @@ grammar P6 is STD {
         <trait>*
 
         [
-        || <?before '='>
-        || <?before <-[\n=]>*'='> <.panic: "Malformed constant"> # probable initializer later
+        || <initializer>
         || <.sorry: "Missing initializer on constant declaration">
         ]
 
         <.getdecl>
     }
 
+    token initializer:sym<=> {
+        <sym> <EXPR(($*LEFTSIGIL eq '$' ?? (item %item_assignment) !! (item %list_prefix) ))>
+                                        || <.panic: "Malformed initializer">
+    }
+    token initializer:sym<:=> {
+        <sym> <EXPR(item %list_prefix)> || <.panic: "Malformed binding">
+    }
+    token initializer:sym<::=> {
+        <sym> <EXPR(item %list_prefix)> || <.panic: "Malformed binding">
+    }
+    token initializer:sym<.=> {
+        <sym> <dottyopish>              || <.panic: "Malformed mutator method call">
+    }
 
     token type_constraint {
         :my $*IN_DECL = '';
         [
         | <value>
         | <typename>
-        | where <.ws> <EXPR(item %chaining)>
+            [ <?{ $*DECLARAND<of> }> <.sorry("Extra 'of' type; already declared as type " ~ $*DECLARAND<of>.Str)> ]?
+            { $*DECLARAND<of> = $<typename>; }
+        | where <.ws> <EXPR(item %item_assignment)>
         ]
         <.ws>
     }
@@ -2912,22 +2872,31 @@ grammar P6 is STD {
         [
         | '[' ~ ']' <signature>
         | '(' ~ ')' <signature>
-        | where <EXPR(item %chaining)>
+        | where <EXPR(item %item_assignment)>
         ]
     }
 
     token named_param {
         :my $*GOAL ::= ')';
+        :dba('named parameter')
         ':'
         [
-        | <name=.identifier> '(' <.ws>
-            [ <named_param> | <param_var> <.ws> ]
-            [ ')' || <.panic: "Unable to parse named parameter; couldn't find right parenthesis"> ]
-        | <param_var>
+        | <name=.identifier> '(' ~ ')' <named_param_term>
+        | <param_var(1)>
+        | '\\' <defterm>
         ]
     }
 
-    token param_var {
+    token named_param_term {
+        <.ws>
+        [
+        | <named_param>
+        | <param_var>
+        | '\\' <defterm>
+        ] <.ws>
+    }
+
+    token param_var($named = 0) {
         :dba('formal parameter')
         [
         | '[' ~ ']' <signature>
@@ -2946,11 +2915,12 @@ grammar P6 is STD {
 
                 # ordinary parameter name
             || <name=.identifier>
+            || <name=.decint> <.panic: "Cannot declare a numeric parameter">
             || $<name> = [<[/!]>]
 
                 # bare sigil?
             ]?
-            {{
+            {
                 my $vname = $<sigil>.Str;
                 my $t = $<twigil>;
                 my $twigil = '';
@@ -2961,6 +2931,9 @@ grammar P6 is STD {
                 given $twigil {
                     when '' {
                         self.add_my_name($vname) if $n ne '';
+                        # :$param is often used as a multi matcher without $param used in body
+                        #   so don't count as "declared but not used"
+                        $*CURLEX{$vname}<used> = 1 if $named and $n;
                     }
                     when '.' {
                     }
@@ -2969,37 +2942,39 @@ grammar P6 is STD {
                     when '*' {
                     }
                     default {
-                        self.worry("Illegal to use $twigil twigil in signature");
+                        self.panic("You may not use the $twigil twigil in a signature");
                     }
                 }
-            }}
+            }
         ]
     }
 
     token parameter {
         :my $kind;
         :my $quant = '';
-        :my $q;
         :my $*DECLARAND;
+        :my $*OFTYPE;
 
         [
         | <type_constraint>+
-            {{
+            {
                 my $t = $<type_constraint>;
                 my @t = grep { substr($_.Str,0,2) ne '::' }, @$t;
                 @t > 1 and $¢.sorry("Multiple prefix constraints not yet supported")
-            }}
+            }
             [
-            | '**' <param_var>   { $quant = '**'; $kind = '*'; }
+            | '**' <param_var>  { $quant = '**'; $kind = '*'; }
             | '*' <param_var>   { $quant = '*'; $kind = '*'; }
-            | '|' <param_var>   { $quant = '|'; $kind = '*'; }
-            | '\\' <param_var>  { $quant = '\\'; $kind = '!'; }
+            | '|' <defterm>?    { $quant = '|'; $kind = '!'; }
+            | '\\' <defterm>?   { $quant = '\\'; $kind = '!'; }
+            | '|' <param_var>   { $quant = '|'; $kind = '!'; } <.worryobs("| with sigil","| without sigil"," nowadays")>
+            | '\\' <param_var>  { $quant = '\\'; $kind = '!'; } <.worryobs("\\ with sigil","\\ without sigil"," nowadays")>
             |   [
                 | <param_var>   { $quant = ''; $kind = '!'; }
                 | <named_param> { $quant = ''; $kind = '*'; }
                 ]
                 [
-                | '?'           { $quant = '?'; $kind = '?' }
+                | '?'           { $quant = '?'; $kind = '?' if $kind eq '!' }
                 | '!'           { $quant = '!'; $kind //= '!' }
                 | <?>
                 ]
@@ -3007,15 +2982,17 @@ grammar P6 is STD {
             ]
 
         | '**' <param_var>   { $quant = '**'; $kind = '*'; }
-        | '*' <param_var>   { $quant = '*'; $kind = '*'; }
-        | '|' <param_var>   { $quant = '|'; $kind = '*'; }
-        | '\\' <param_var>  { $quant = '\\'; $kind = '!'; }
+        | '*' <param_var>    { $quant = '*'; $kind = '*'; }
+        | '|' <defterm>?     { $quant = '|'; $kind = '!'; }
+        | '\\' <defterm>?    { $quant = '\\'; $kind = '!'; }
+        | '|' <param_var>    { $quant = '|'; $kind = '!'; } <.worryobs("| with sigil","| without sigil"," nowadays")>
+        | '\\' <param_var>   { $quant = '\\'; $kind = '!'; } <.worryobs("\\ with sigil","\\ without sigil"," nowadays")>
         |   [
             | <param_var>   { $quant = ''; $kind = '!'; }
             | <named_param> { $quant = ''; $kind = '*'; }
             ]
             [
-            | '?'           { $quant = '?'; $kind = '?' }
+            | '?'           { $quant = '?'; $kind = '?' if $kind eq '!' }
             | '!'           { $quant = '!'; $kind //= '!' }
             | <?>
             ]
@@ -3029,36 +3006,34 @@ grammar P6 is STD {
         <.getdecl>
 
         [
-            <default_value> {{
+            <default_value> {
                 given $quant {
-                  when '!' { $¢.sorry("Can't put a default on a required parameter") }
-                  when '*' { $¢.sorry("Can't put a default on a slurpy parameter") }
-                  when '**' { $¢.sorry("Can't put a default on a slice parameter") }
-                  when '|' { $¢.sorry("Can't put a default on an slurpy capture parameter") }
-                  when '\\' { $¢.sorry("Can't put a default on a capture parameter") }
+                  when '!'  { $¢.sorry("Cannot put a default on a required parameter") }
+                  when '*'  { $¢.sorry("Cannot put a default on a slurpy parameter") }
+                  when '**' { $¢.sorry("Cannot put a default on a slice parameter") }
+                  when '\\' { $¢.sorry("Cannot put a default on a parcel parameter") }
+                  when '|'  { $¢.sorry("Cannot put a default on a capture snapshot parameter") }
                 }
                 $kind = '?' if $kind eq '!';
-            }}
-            [<?before ':' > <.sorry: "Can't put a default on the invocant parameter">]?
-            [<!before <[,;)\]\{\-]> > <.sorry: "Default expression must come last">]?
+            }
+            [<?before ':' > <.sorry: "Cannot put a default on the invocant parameter">]?
+            [<!before <[,;)\]\{\}\-]> > <.sorry: "Default expression must come last">]?
         ]?
         [<?before ':'> <?{ $kind ne '!' }> <.sorry: "Invocant is too exotic">]?
 
-        {
-            $<quant> = $quant;
-            $<kind> = $kind;
-        }
+        $<quant> = {$quant}
+        $<kind> = {$kind}
 
         # enforce zone constraints
-        {{
+        {
             given $kind {
                 when '!' {
                     given $*zone {
                         when 'posopt' {
-    $¢.sorry("Can't put required parameter after optional parameters");
+    $¢.sorry("Cannot put required parameter after optional parameters");
                         }
                         when 'var' {
-    $¢.sorry("Can't put required parameter after variadic parameters");
+    $¢.sorry("Cannot put required parameter after variadic parameters");
                         }
                     }
                 }
@@ -3066,7 +3041,7 @@ grammar P6 is STD {
                     given $*zone {
                         when 'posreq' { $*zone = 'posopt' }
                         when 'var' {
-    $¢.sorry("Can't put optional positional parameter after variadic parameters");
+    $¢.sorry("Cannot put optional positional parameter after variadic parameters");
                         }
                     }
                 }
@@ -3074,7 +3049,7 @@ grammar P6 is STD {
                     $*zone = 'var';
                 }
             }
-        }}
+        }
     }
 
     rule default_value {
@@ -3099,22 +3074,19 @@ grammar P6 is STD {
 
     # accepts blocks and statements
     token blast {
-        <?before \s> <.ws>
         [
-        | <block>
-        | <statement>  # creates a dynamic scope but not lexical scope
+        | <?before \s> <.ws>
+            [
+            | <block>
+            | <statement>  # creates a dynamic scope but not lexical scope
+            ]
+        | <.panic: "Whitespace required after keyword">
         ]
     }
 
     #########
     # Terms #
     #########
-
-    # start playing with the setting stubber
-    token term:YOU_ARE_HERE {
-        <sym> <.you_are_here>
-        <O(|%term)>
-    }
 
     token term:new {
         'new' \h+ <longname> \h* <!before ':'> <.obs("C++ constructor syntax", "method call syntax")>
@@ -3123,11 +3095,6 @@ grammar P6 is STD {
     token term:sym<::?IDENT> {
         $<sym> = [ '::?' <identifier> ] »
         <O(|%term)>
-    }
-
-    token term:sym<Object> {
-        <sym> » {}
-        <.obs('Object', 'Mu as the "most universal" object type')>
     }
 
     token term:sym<undef> {
@@ -3139,17 +3106,23 @@ grammar P6 is STD {
         [ <?before [ '(' || \h*<sigil><twigil>?\w ] >
             <.obs('undef as a verb', 'undefine function or assignment of Nil')>
         ]?
-        <.obs('undef as a value', "something more specific:\n\tMu (the \"most undefined\" type object),\n\tan undefined type object such as Int,\n\tNil as an empty list,\n\t:!defined as a matcher,\n\tAny:U as a type constraint\n\tor fail() as a failure return\n\t   ")>
+        <.obs('undef as a value', "something more specific:\n\tMu (the \"most undefined\" type object),\n\tan undefined type object such as Int,\n\t:!defined as a matcher,\n\tAny:U as a type constraint,\n\tNil as the absense of a value\n\tor fail() as a failure return\n\t   ")>
     }
 
     token term:sym<proceed>
         { <sym> » <O(|%term)> }
 
+    token term:sym<time>
+        { <sym> » <O(|%term)> }
+
     token term:sym<now>
         { <sym> » <O(|%term)> }
 
-    token term:sym<self>
-        { <sym> » <O(|%term)> }
+    token term:sym<self> {
+        <sym> »
+        { $*HAS_SELF || $¢.sorry("'self' used where no object is available") }
+        <O(|%term)>
+    }
 
     token term:sym<defer>
         { <sym> » <O(|%term)> }
@@ -3168,15 +3141,17 @@ grammar P6 is STD {
         { <sym> <O(|%term)> }
 
     token infix:lambda {
-        <?before '{' | '->' > <!{ $*IN_META }> {{
+        <?before '{' | '->' > <!{ $*IN_META }> {
+            my $needparens = 0;
             my $line = $¢.lineof($¢.pos);
-            for 'if', 'unless', 'while', 'until', 'for', 'loop', 'given', 'when', 'sub' {
+            for 'if', 'unless', 'while', 'until', 'for', 'given', 'when', 'loop', 'sub', 'method' {
+                $needparens++ if $_ eq 'loop';
                 my $m = %*MYSTERY{$_};
                 next unless $m;
                 if $line - ($m.<line>//-123) < 5 {
                     if $m.<ctx> eq '(' {
                         $¢.panic("Word '$_' interpreted as '$_" ~ "()' function call; please use whitespace " ~
-                        ($_ eq 'loop' ?? 'around the parens' !! 'instead of parens') ~ $m<token>.locmess ~
+                        ($needparens ?? 'around the parens' !! 'instead of parens') ~ $m<token>.locmess ~
                         "\nUnexpected block in infix position (two terms in a row)");
                     }
                     else {
@@ -3198,7 +3173,7 @@ grammar P6 is STD {
             else {
                 $¢.panic("Unexpected block in infix position (two terms in a row, or previous statement missing semicolon?)");
             }
-        }}
+        }
         <O(|%term)>
     }
 
@@ -3219,9 +3194,9 @@ grammar P6 is STD {
         :dba('prefix or meta-prefix')
         [
         | <prefix>
-            { $<O> = $<prefix><O>; $<sym> = $<prefix><sym> }
+            $<O> = {$<prefix><O>} $<sym> = {$<prefix><sym>}
         | <prefix_circumfix_meta_operator>
-            { $<O> = $<prefix_circumfix_meta_operator><O>; $<sym> = $<prefix_circumfix_meta_operator>.Str }
+            $<O> = {$<prefix_circumfix_meta_operator><O>} $<sym> = {$<prefix_circumfix_meta_operator>.Str}
         ]
         # XXX assuming no precedence change
         
@@ -3244,12 +3219,17 @@ grammar P6 is STD {
                 %<O><dba> = 'adverb';
             }
         |   [
-            | :dba('bracketed infix') '[' ~ ']' <infix=.infixish('[]')> { $<O> = $<infix><O>; $<sym> = $<infix><sym>; }
+            | :dba('bracketed infix') '[' ~ ']' <infix=.infixish('[]')>
+                                                    { $<O> = $<infix><O>; $<sym> = $<infix><sym>; }
+                    [ <!before '='> { self.worry("Useless use of [] around infix op") unless $*IN_META; } ]?
+            | :dba('infixed function') <?before '[' <[&\$]> <twigil>? [<alpha>|'('] > '[' ~ ']' <infix=.variable>
+                                                    { $<O> = $<infix><O> // {%additive}; $<sym> = $<infix>; }
+                                                    { $¢.check_variable($<infix>) }
             | <infix=infix_circumfix_meta_operator> { $<O> = $<infix><O>; $<sym> = $<infix><sym>; }
             | <infix=infix_prefix_meta_operator>    { $<O> = $<infix><O>; $<sym> = $<infix><sym>; }
             | <infix>                               { $<O> = $<infix><O>; $<sym> = $<infix><sym>; }
-            | {} <?dotty> <.panic: "Method call found where infix expected (omit whitespace?)">
-            | {} <?postfix> <.panic: "Postfix found where infix expected (omit whitespace?)">
+            | {} <?dotty> <.panic: "Method call found where infix expected (change whitespace?)">
+            | {} <?postfix> <.panic: "Postfix found where infix expected (change whitespace?)">
             ]
             [ <?before '='> <?{ $infix = $<infix>; }> <infix_postfix_meta_operator($infix)>
                    { $<O> = $<infix_postfix_meta_operator>[0]<O>; $<sym> = $<infix_postfix_meta_operator>[0]<sym>; }
@@ -3265,18 +3245,18 @@ grammar P6 is STD {
     # doing fancy as one rule simplifies LTM
     token dotty:sym<.*> {
         ('.' [ <[+*?=]> | '^' '!'? ]) :: <.unspacey> <dottyop>
-        { $<sym> = $0.Str; }
-        <O(%methodcall)>
+        $<sym> = {$0.Str}
+        <O(|%methodcall)>
     }
 
     token dotty:sym<.> {
         <sym> <dottyop>
-        <O(%methodcall)>
+        <O(|%methodcall)>
     }
 
     token privop {
         '!' <methodop>
-        <O(%methodcall)>
+        <O(|%methodcall)>
     }
 
     token dottyopish {
@@ -3288,7 +3268,7 @@ grammar P6 is STD {
         [
         | <methodop>
         | <colonpair>
-        | <!alpha> <postop> { $<O> = $<postop><O>; $<sym> = $<postop><sym>; }  # only non-alpha postfixes have dotty form
+        | <!alpha> <postop> $<O> = {$<postop><O>} $<sym> = {$<postop><sym>}  # only non-alpha postfixes have dotty form
         ]
     }
 
@@ -3316,11 +3296,11 @@ grammar P6 is STD {
 
     method can_meta ($op, $meta) {
         !$op<O><fiddly> ||
-            self.sorry("Can't " ~ $meta ~ " " ~ $op<sym> ~ " because " ~ $op<O><dba> ~ " operators are too fiddly");
+            self.sorry("Cannot " ~ $meta ~ " " ~ $op<sym> ~ " because " ~ $op<O><dba> ~ " operators are too fiddly");
         self;
     }
 
-    regex prefix_circumfix_meta_operator:reduce {
+    regex term:reduce {
         :my $*IN_REDUCE = 1;
         :my $op;
         <?before '['\S+']'>
@@ -3333,20 +3313,19 @@ grammar P6 is STD {
             ]
             ']' ['«'|<?>]
         )
-        { $op = $<s><op>; }
+        { $op = $<s><op>; @*MEMOS[$¢.pos]<listop> = 1; }
 
         <.can_meta($op, "reduce with")>
 
         [
         || <!{ $op<O><diffy> }>
         || <?{ $op<O><assoc> eq 'chain' }>
-        || <.sorry("Can't reduce with " ~ $op<sym> ~ " because " ~ $op<O><dba> ~ " operators are diffy and not chaining")>
+        || <.sorry("Cannot reduce with " ~ $op<sym> ~ " because " ~ $op<O><dba> ~ " operators are diffy and not chaining")>
         ]
 
-        <O($op.Opairs, |%list_prefix, assoc => 'unary', uassoc => 'left')>
+        <args(0)>
+        <O(|%term)>
         { $<sym> = $<s>.Str; }
-
-        [ <?before '('> || <?before \s+ [ <?stdstopper> { $<O><term> = 1 } ]? > || { $<O><term> = 1 } ]
     }
 
     token prefix_postfix_meta_operator:sym< « >    { <sym> | '<<' }
@@ -3366,22 +3345,22 @@ grammar P6 is STD {
            
         || <.can_meta($<infixish>, "negate")>    
            <?{ $<infixish><O><iffy> }>
-           <?{ $<O> = $<infixish><O>; }>
+           $<O> = {$<infixish><O>}
             
-        || <.sorry("Can't negate " ~ $<infixish>.Str ~ " because " ~ $<infixish><O><dba> ~ " operators are not iffy enough")>
+        || <.panic("Cannot negate " ~ $<infixish>.Str ~ " because " ~ $<infixish><O><dba> ~ " operators are not iffy enough")>
         ]
     }
 
     token infix_prefix_meta_operator:sym<R> {
         <sym> {} <infixish('R')>
         <.can_meta($<infixish>, "reverse the args of")>
-        <?{ $<O> = $<infixish><O>; }>
+        $<O> = {$<infixish><O>}
     }
 
     token infix_prefix_meta_operator:sym<S> {
         <sym> {} <infixish('S')>
         <.can_meta($<infixish>, "sequence the args of")>
-        <?{ $<O> = $<infixish><O>; }>
+        $<O> = {$<infixish><O>}
     }
 
     token infix_prefix_meta_operator:sym<X> {
@@ -3409,7 +3388,7 @@ grammar P6 is STD {
         ]
         {} <infixish('hyper')> [ '«' | '»' || <.panic: "Missing « or »"> ]
         <.can_meta($<infixish>, "hyper with")>
-        <?{ $<O> := $<infixish><O>; }>
+        $<O> = {$<infixish><O>}
     }
 
     token infix_circumfix_meta_operator:sym«<< >>» {
@@ -3419,22 +3398,39 @@ grammar P6 is STD {
         ]
         {} <infixish('HYPER')> [ '<<' | '>>' || <.panic("Missing << or >>")> ]
         <.can_meta($<infixish>, "hyper with")>
-        <?{ $<O> := $<infixish><O>; }>
+        $<O> = {$<infixish><O>}
     }
 
     token infix_postfix_meta_operator:sym<=> ($op) {
+        :my %prec;
         '='
         <.can_meta($op, "make assignment out of")>
-        [ <!{ $op<O><diffy> }> || <.sorry("Can't make assignment out of " ~ $op<sym> ~ " because " ~ $op<O><dba> ~ " operators are diffy")> ]
-        { $<sym> = $op<sym> ~ '='; }
-        <O(|%item_assignment, $op.Opairs, dba => 'item assignment', iffy => 0)>
+        [ <!{ $op<O><diffy> }> || <.sorry("Cannot make assignment out of " ~ $op<sym> ~ " because " ~ $op<O><dba> ~ " operators are diffy")> ]
+        {
+            $<sym> = $op<sym> ~ '=';
+            if $op<O><prec> gt %comma<prec> {
+                %prec = %item_assignment;
+            }
+            else {
+                %prec = %list_assignment;
+            }
+        }
+        <O($op.Opairs, |%prec, dba => 'assignment operator', iffy => 0)>
     }
 
     token postcircumfix:sym<( )>
         { :dba('argument list') '(' ~ ')' <semiarglist> <O(|%methodcall)> }
 
-    token postcircumfix:sym<[ ]>
-        { :dba('subscript') '[' ~ ']' <semilist> { $<semilist>.Str ~~ /^\s*\-1\s*$/ and $¢.obs("[-1] subscript to access final element","[*-1]") } <O(|%methodcall)> }
+    token postcircumfix:sym<[ ]> { :dba('subscript') '[' ~ ']' <semilist> <O(|%methodcall)> 
+        {
+            my $innards = $<semilist>.Str;
+            $innards ~~ s/^\s+//;
+            $innards ~~ s/\s+$//;
+            if $innards ~~ /^\-\d+$/ {
+                $¢.obs("[$innards] subscript to access from end of array","[*$innards]");
+            }
+        }
+    }
 
     token postcircumfix:sym<{ }>
         { :dba('subscript') '{' ~ '}' <semilist> <O(|%methodcall)> <.curlycheck> }
@@ -3459,19 +3455,19 @@ grammar P6 is STD {
         { '«' <nibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:qq).tweak(:ww).balanced('«','»'))> [ '»' || <.panic: "Unable to parse quote-words subscript; couldn't find right double-angle quote"> ] <O(|%methodcall)> }
 
     token postop {
-        | <postfix>         { $<O> := $<postfix><O>; $<sym> := $<postfix><sym>; }
-        | <postcircumfix>   { $<O> := $<postcircumfix><O>; $<sym> := $<postcircumfix><sym>; }
+        | <postfix>         $<O> = {$<postfix><O>} $<sym> = {$<postfix><sym>}
+        | <postcircumfix>   $<O> = {$<postcircumfix><O>} $<sym> = {$<postcircumfix><sym>}
     }
 
     token methodop {
         [
         | <longname>
-        | <?before '$' | '@' | '&' > <variable> { $*VAR = $<variable> }
+        | <?before '$' | '@' | '&' > <variable> { $¢.check_variable($<variable>) }
         | <?before <[ ' " ]> >
             [ <!{$*QSIGIL}> || <!before '"' <-["]>*? \s > ] # dwim on "$foo."
             <quote>
             [ <?before '(' | '.(' | '\\'> || <.obs('. to concatenate strings or to call a quoted method', '~ to concatenate, or if you meant to call a quoted method, please supply the required parentheses')> ]
-            { my $t = $<quote><nibble>.Str; $t ~~ /\W/ or $t ~~ /^(WHO|WHAT|WHERE|WHEN|WHY|HOW)$/ or $¢.worry("Useless use of quotes") }
+            { my $t = $<quote><nibble>.Str; $t ~~ /\W/ or $t eq '' or $t ~~ /^(WHO|WHAT|WHERE|WHEN|WHY|HOW)$/ or $¢.worry("Useless use of quotes") }
         ] <.unsp>? 
 
         :dba('method arguments')
@@ -3496,7 +3492,7 @@ grammar P6 is STD {
         :dba('argument list')
         [
         | <?stdstopper>
-        | <EXPR(item %list_prefix)> {{
+        | <EXPR(item %list_prefix)> {
                 my $delims = $<EXPR><delims>;
                 for @$delims {
                     if $_.<infix><wascolon> // '' {
@@ -3505,29 +3501,29 @@ grammar P6 is STD {
                         }
                     }
                 }
-            }}
+            }
         ]
     }
 
     token term:lambda {
         <?before <.lambda> >
         <pblock>
-        {{
+        {
             if $*BORG {
                 $*BORG.<block> = $<pblock>;
             }
-        }}
+        }
         <O(|%term)>
     }
 
     token circumfix:sym<{ }> {
         <?before '{' >
         <pblock>
-        {{
+        {
             if $*BORG {
                 $*BORG.<block> = $<pblock>;
             }
-        }}
+        }
         <O(|%term)>
     }
 
@@ -3575,13 +3571,13 @@ grammar P6 is STD {
         { <sym> <O(|%symbolic_unary)> }
 
     token prefix:sym<~~>
-        { <sym> <.badinfix> <O(|%symbolic_unary)> }
+        { <sym> <.dupprefix('~~')> <O(|%symbolic_unary)> }
 
     token prefix:sym<~>
         { <sym> <O(|%symbolic_unary)> }
 
     token prefix:sym<??>
-        { <sym> <.badinfix> <O(|%symbolic_unary)> }
+        { <sym> <.dupprefix('??')> <O(|%symbolic_unary)> }
 
     token prefix:sym<?>
         { <sym> <O(|%symbolic_unary)> }
@@ -3596,7 +3592,7 @@ grammar P6 is STD {
         { <sym> <O(|%symbolic_unary)> }
 
     token prefix:sym<^^>
-        { <sym> <.badinfix> <O(|%symbolic_unary)> }
+        { <sym> <.dupprefix('^^')> <O(|%symbolic_unary)> }
 
     token prefix:sym<^>
         { <sym> <O(|%symbolic_unary)> }
@@ -3619,19 +3615,28 @@ grammar P6 is STD {
         { <sym> <O(|%multiplicative)> }
 
     token infix:sym<%>
-        { <sym> <O(|%multiplicative, iffy => 1)> }   # Allow !% operator
+        { <sym> <O(|%multiplicative)> }
+
+    token infix:sym<%%>
+        { <sym> <O(|%multiplicative, iffy => 1)> }      # "is divisible by" returns Bool
 
     token infix:sym<mod>
+        { <sym> <O(|%multiplicative)> }
+
+    token infix:sym<gcd>
+        { <sym> <O(|%multiplicative)> }
+
+    token infix:sym<lcm>
         { <sym> <O(|%multiplicative)> }
 
     token infix:sym<+&>
         { <sym> <O(|%multiplicative)> }
 
     token infix:sym« << »
-        { <sym> <!{ $*IN_META eq 'HYPER' }> <?before \s> <.sorryobs('<< to do left shift', '+< or ~<')> <O(|%multiplicative)> }
+        { <sym> <!{ $*IN_META }> <?before \s> <.sorryobs('<< to do left shift', '+< or ~<')> <O(|%multiplicative)> }
 
     token infix:sym« >> »
-        { <sym> <!{ $*IN_META eq 'HYPER' }> <?before \s> <.sorryobs('>> to do right shift', '+> or ~>')> <O(|%multiplicative)> }
+        { <sym> <!{ $*IN_META }> <?before \s> <.sorryobs('>> to do right shift', '+> or ~>')> <O(|%multiplicative)> }
 
     token infix:sym<~&>
         { <sym> <O(|%multiplicative)> }
@@ -3641,16 +3646,16 @@ grammar P6 is STD {
 
     # try to allow both of >>op<< and >>op<<< without allowing op<<
     token infix:sym« ~< »
-        { <sym> [ <!{ $*IN_META eq 'HYPER' }> || <?before '<<'> || <!before '<'> ] <O(|%multiplicative)> }
+        { <sym> [ <!{ $*IN_META }> || <?before '<<'> || <!before '<'> ] <O(|%multiplicative)> }
 
     token infix:sym« ~> »
-        { <sym> [ <!{ $*IN_META eq 'HYPER' }> || <?before '>>'> || <!before '>'> ] <O(|%multiplicative)> }
+        { <sym> [ <!{ $*IN_META }> || <?before '>>'> || <!before '>'> ] <O(|%multiplicative)> }
 
     token infix:sym« +< »
-        { <sym> [ <!{ $*IN_META eq 'HYPER' }> || <?before '<<'> || <!before '<'> ] <O(|%multiplicative)> }
+        { <sym> [ <!{ $*IN_META }> || <?before '<<'> || <!before '<'> ] <O(|%multiplicative)> }
 
     token infix:sym« +> »
-        { <sym> [ <!{ $*IN_META eq 'HYPER' }> || <?before '>>'> || <!before '>'> ] <O(|%multiplicative)> }
+        { <sym> [ <!{ $*IN_META }> || <?before '>>'> || <!before '>'> ] <O(|%multiplicative)> }
 
     ## additive
     token infix:sym<+>
@@ -3755,27 +3760,33 @@ grammar P6 is STD {
         { <sym> <?before \s> <O(|%chaining)> }
 
     token infix:sym« < »
-        { <sym> <O(|%chaining)> }
+        { <sym> <!before '<'> <O(|%chaining)> }
 
     token infix:sym« <= »
         { <sym> <O(|%chaining)> }
 
     token infix:sym« > »
-        { <sym> <O(|%chaining)> }
+        { <sym> <!before '>'> <O(|%chaining)> }
 
     token infix:sym« >= »
         { <sym> <O(|%chaining)> }
 
     token infix:sym<~~>
-        { <sym> <O(|%chaining)> <?before \h* ('True'|'False') » <.dumbsmart($0.Str)>>? }
+        { <sym> <O(|%chaining)> <?dumbsmart> }
 
-    method dumbsmart ($litbool) {
-        self.worry("Smartmatch against $litbool always " ~
-            ($litbool eq 'True' ?? 'matches' !! 'fails') ~
-            "; if you mean to test the topic for\n    truthiness, please use " ~
-            ($litbool eq 'True' ?? ':so or *.so or ?*' !! ':!so or *.not or !*') ~
-            ' instead');
-        self;
+    token dumbsmart {
+        [ \h*
+            ('True'|'False'|'Bool::True'|'Bool::False') <?before \s>
+            {
+                my $litbool = $0[0].Str;
+                my $true = $litbool ~~ /True/;
+                self.worry("Smartmatch against $litbool always " ~
+                    ($true ?? 'matches' !! 'fails') ~
+                    "; if you mean to test the topic for\n    truthiness, please use " ~
+                    ($true ?? ':so or *.so or ?*' !! ':!so or *.not or !*') ~
+                    ' instead');
+            }
+        ]?
     }
 
     # XXX should move to inside meta !
@@ -3847,14 +3858,19 @@ grammar P6 is STD {
         '??'
         <.ws>
         <EXPR(item %item_assignment)>
-        [ '!!' ||
-            [
-            || <?before '='> <.panic: "Assignment not allowed within ??!!">
-            || <?before '::'> <.panic: "Please use !! rather than ::">
-            || <?before <infixish>>    # Note: a tight infix would have parsed right
-                <.panic: "Precedence too loose within ??!!; use ??()!! instead ">
-            || <.panic: "Found ?? but no !!; possible precedence problem">
-            ]
+        [ '!!'
+        || <?before '::'<-[=]>> <.panic: "Please use !! rather than ::">
+        || <infixish> {
+                my $b = $<infixish>.Str;
+                if $b eq ':' {
+                    $¢.panic("Please use !! rather than $b");
+                }
+                else {
+                    $¢.panic("Precedence of $b is too loose to use between ?? and !!; please use parens around inner expression");
+                }
+            }
+        || <?before \N*? [\n\N*?]?> '!!' <.sorry("Bogus code found before the !!")> <.panic("Confused")>
+        || <.sorry("Found ?? but no !!")> <.panic("Confused")>
         ]
         <O(|%conditional, _reducecheck => 'raise_middle')>
     }
@@ -3863,6 +3879,7 @@ grammar P6 is STD {
         <sym> ::
         [
         || <.suppose <infixish>> <.panic: "An infix may not start with !!">
+        || <?{ $*GOAL eq 'endargs' }> <.panic: "List operator is not allowed inside ??!!; please use parens">
         || <.panic: "Ternary !! seems to be missing its ??">
         ]
     }
@@ -3900,8 +3917,6 @@ grammar P6 is STD {
         { <sym> <O(|%conditional)> }
 
     ## assignment
-    # There is no "--> type" because assignment may be coerced to either
-    # item assignment or list assignment at "make" time.
 
     token infix:sym<=> ()
     {
@@ -3914,10 +3929,10 @@ grammar P6 is STD {
     }
 
     token infix:sym<:=>
-        { <sym> <O(|%item_assignment)> }
+        { <sym> <O(|%list_assignment)> }
 
     token infix:sym<::=>
-        { <sym> <O(|%item_assignment)> }
+        { <sym> <O(|%list_assignment)> }
 
     token infix:sym<.=> {
         <sym>
@@ -3928,14 +3943,14 @@ grammar P6 is STD {
     }
 
     method check_doteq {
-        # [ <?before \w+';' | 'new'|'sort'|'subst'|'trans'|'reverse'|'uniq'|'map'|'samecase'|'substr'|'flip'|'fmt' > || ]
+        # [ <?before \w+';' | 'new'|'sort'|'subst'|'trans'|'reverse'|'uniq'|'map'|'samecase'|'substr'|'flip'|'fmt'|'pick' > || ]
         return self if self.<left><scope_declarator>;
         my $ok = 0;
 
         try {
             my $methop = self.<right><methodop>;
             my $name = $methop.<longname>.Str;
-            if $name eq 'new' or $name eq 'sort' or $name eq 'subst' or $name eq 'trans' or $name eq 'reverse' or $name eq 'uniq' or $name eq 'map' or $name eq 'samecase' or $name eq 'substr' or $name eq 'flip' or $name eq 'fmt' {
+            if grep { $_ eq $name }, <new clone sort subst trans reverse uniq map samecase substr flip fmt pick> {
                 $ok = 1;
             }
             elsif not $methop.<args>[0] {
@@ -3943,7 +3958,7 @@ grammar P6 is STD {
             }
         };
 
-        self.cursor_force(self.<infix><_pos>).worryobs('.= as append operator', '~=') unless $ok;
+        self.cursor_force(self.<infix>.pos).worryobs('.= as append operator', '~=') unless $ok;
         self;
     }
 
@@ -3960,16 +3975,18 @@ grammar P6 is STD {
         { <sym> » <O(|%loose_unary)> }
 
     ## list item separator
-    token infix:sym<,>
-        { <sym> <O(|%comma, fiddly => 0)> }
+    token infix:sym<,> {
+        <sym> <O(|%comma, fiddly => 0)>
+        [ <?before \h*'...'> <.worry: "Comma found before apparent series operator; please remove comma (or put parens\n    around the ... listop, or use 'fail' instead of ...)"> ]?
+    }
 
     token infix:sym<:> {
         ':' <?before \s | <terminator> >
         {
             $¢.sorry("Illegal use of colon as invocant marker") unless $*INVOCANT_OK-- or $*PRECLIM ge $item_assignment_prec;
-            $<sym> = ',';
-            $<wascolon> = True;
         }
+        $<wascolon> = {True}
+        $<sym> = {','}
         <O(|%comma)>
     }
 
@@ -3983,7 +4000,7 @@ grammar P6 is STD {
         { <sym> <O(|%list_infix)> }
 
     token infix:sym<...>
-        { <sym> <O(|%list_infix)> }
+        { <sym> <O(|%list_infix)> '^'? }
 
     token term:sym<...>
         { <sym> <args>? <O(|%list_prefix)> }
@@ -3999,7 +4016,9 @@ grammar P6 is STD {
         :defined, :eval, :exp, :glob, :lc, :lcfirst, :log, :lstat, :mkdir,
         :ord, :readlink, :readpipe, :require, :reverse, :rmdir, :sin,
         :split, :sqrt, :stat, :uc, :ucfirst, :unlink,
-        :WHAT, :WHICH, :WHERE, :HOW, :WHENCE, :VAR,
+        :WHAT(2), :WHICH(2), :WHERE(2), :HOW(2), :WHENCE(2), :WHO(2),
+        :VAR(2),
+        :any(2), :all(2), :none(2), :one(2),
     );
 
     # force identifier(), identifier.(), etc. to be a function call always
@@ -4007,11 +4026,17 @@ grammar P6 is STD {
     {
         :my $name;
         :my $pos;
+        :my $isname = 0;
         <identifier> <?before [<unsp>|'(']? > <![:]>
-        { $name = $<identifier>.Str; $pos = $¢.pos; }
-        <args( $¢.is_name($name) )>
-        { self.add_mystery($<identifier>,$pos,substr($*ORIG,$pos,1)) unless $<args><invocant>; }
-        {{
+        {
+            $name = $<identifier>.Str;
+            $pos = $¢.pos;
+            $isname = $¢.is_name($name);
+            $¢.check_nodecl($name) if $isname;
+        }
+        <args($isname)>
+        { self.add_mystery($<identifier>,$pos,substr(self.orig,$pos,1)) unless $<args><invocant>; }
+        {
             if $*BORG and $*BORG.<block> {
                 if not $*BORG.<name> {
                     $*BORG.<culprit> = $<identifier>.cursor($pos);
@@ -4021,13 +4046,21 @@ grammar P6 is STD {
             if %deftrap{$name} {
                 my $al = $<args><arglist>[0];
                 my $ok = 0;
+                $ok = 1 if $isname;
                 $ok = 1 if $al and $al.from != $al.to;
                 $ok = 1 if $<args><semiarglist>;
                 if not $ok {
-                    $<identifier>.worryobs("bare '$name'", ".$name if you meant \$_, or use an explicit invocant or argument");
+                    given +%deftrap{$name} {
+                        when 1 {        # probably misused P5ism
+                            $<identifier>.sorryobs("bare '$name'", ".$name if you meant \$_, or use an explicit invocant or argument");
+                        }
+                        when 2 {        # probably misused P6ism
+                            $<identifier>.sorry("The '$name' listop may not be called without arguments (please use () or whitespace to clarify)");
+                        }
+                    }
                 }
             }
-        }}
+        }
         <O(|%term)>
     }
 
@@ -4040,15 +4073,16 @@ grammar P6 is STD {
     #    | :dba('argument list') '.(' ~ ')' <semiarglist>
         | :dba('argument list') '(' ~ ')' <semiarglist>
         | :dba('argument list') <.unsp> '(' ~ ')' <semiarglist>
-        |  { $listopish = 1 } [<?before \s> <!{ $istype }> <.ws> <!infixstopper> <arglist>]?
+        |  { $listopish = 1; @*MEMOS[$¢.pos]<listop> = 1; }
+            [<?before \s> <!{ $istype }> <.ws> <!infixstopper> <arglist>]?
         ]
-        { $<invocant> = $*INVOCANT_IS; }
+        $<invocant> = {$*INVOCANT_IS}
 
         :dba('extra arglist after (...):')
         [
         || <?{ $listopish }>
         || ':' <?before \s> <moreargs=.arglist>    # either switch to listopiness
-        || {{ $<O> = {}; }}   # or allow adverbs (XXX needs hoisting?)
+        || $<O> = { {} }   # or allow adverbs (XXX needs hoisting?)
         ]
     }
 
@@ -4067,6 +4101,7 @@ grammar P6 is STD {
         ||  <?{
                 $¢.is_name($name) or substr($name,0,2) eq '::'
             }>
+            { $¢.check_nodecl($name); }
 
             # parametric type?
             :dba('type parameter')
@@ -4081,16 +4116,22 @@ grammar P6 is STD {
 
         # unrecognized names are assumed to be post-declared listops.
         || <args> { self.add_mystery($<longname>,$pos,'termish') unless $<args><invocant>; }
-            {{
+            {
                 if $*BORG and $*BORG.<block> {
                     if not $*BORG.<name> {
                         $*BORG.<culprit> = $<longname>.cursor($pos);
                         $*BORG.<name> //= $name;
                     }
                 }
-            }}
+            }
         ]
-        <O(%term)>
+        <O(|%term)>
+    }
+
+    method check_nodecl($name) {
+        if $name lt 'a' {
+            @*MEMOS[self.pos]<nodecl> = $name;
+        }
     }
 
     ## loose and
@@ -4166,7 +4207,7 @@ grammar P6 is STD {
         ]
     }
 
-} # end grammar
+}
 
 grammar Q is STD {
 
@@ -4186,19 +4227,19 @@ grammar Q is STD {
         token backslash:t { <sym> }
         token backslash:x { :dba('hex character') <sym> [ <hexint> | '[' ~ ']' <hexints> ] }
         token backslash:sym<0> { <sym> }
-    } # end role
+    }
 
     role b0 {
         token escape:sym<\\> { <!> }
-    } # end role
+    }
 
     role c1 {
         token escape:sym<{ }> { <?before '{'> [ :lang(%*LANG<MAIN>) <embeddedblock> ] }
-    } # end role
+    }
 
     role c0 {
         token escape:sym<{ }> { <!> }
-    } # end role
+    }
 
     role s1 {
         token escape:sym<$> {
@@ -4206,11 +4247,11 @@ grammar Q is STD {
             <?before '$'>
             [ :lang(%*LANG<MAIN>) <EXPR(item %methodcall)> ] || <.panic: "Non-variable \$ must be backslashed">
         }
-    } # end role
+    }
 
     role s0 {
         token escape:sym<$> { <!> }
-    } # end role
+    }
 
     role a1 {
         token escape:sym<@> {
@@ -4218,11 +4259,11 @@ grammar Q is STD {
             <?before '@'>
             [ :lang(%*LANG<MAIN>) <EXPR(item %methodcall)> | <!> ] # trap ABORTBRANCH from variable's ::
         }
-    } # end role
+    }
 
     role a0 {
         token escape:sym<@> { <!> }
-    } # end role
+    }
 
     role h1 {
         token escape:sym<%> {
@@ -4230,11 +4271,11 @@ grammar Q is STD {
             <?before '%'>
             [ :lang(%*LANG<MAIN>) <EXPR(item %methodcall)> | <!> ]
         }
-    } # end role
+    }
 
     role h0 {
         token escape:sym<%> { <!> }
-    } # end role
+    }
 
     role f1 {
         token escape:sym<&> {
@@ -4242,43 +4283,43 @@ grammar Q is STD {
             <?before '&'>
             [ :lang(%*LANG<MAIN>) <EXPR(item %methodcall)> | <!> ]
         }
-    } # end role
+    }
 
     role f0 {
         token escape:sym<&> { <!> }
-    } # end role
+    }
 
     role p1 {
-        method postprocess ($s) { $s.parsepath }
-    } # end role
+        method postprocessor () { 'path' }
+    }
 
     role p0 {
-        method postprocess ($s) { $s }
-    } # end role
+        method postprocessor () { 'null' }
+    }
 
     role w1 {
-        method postprocess ($s) { $s.words }
-    } # end role
+        method postprocessor () { 'words' }
+    }
 
     role w0 {
-        method postprocess ($s) { $s }
-    } # end role
+        method postprocessor () { 'null' }
+    }
 
     role ww1 {
-        method postprocess ($s) { $s.words }
-    } # end role
+        method postprocessor () { 'quotewords' }
+    }
 
     role ww0 {
-        method postprocess ($s) { $s }
-    } # end role
+        method postprocessor () { 'null' }
+    }
 
     role x1 {
-        method postprocess ($s) { $s.run }
-    } # end role
+        method postprocessor () { 'run' }
+    }
 
     role x0 {
-        method postprocess ($s) { $s }
-    } # end role
+        method postprocessor () { 'null' }
+    }
 
     role q {
         token stopper { \' }
@@ -4292,26 +4333,20 @@ grammar Q is STD {
         # in single quotes, keep backslash on random character by default
         token backslash:misc { {} (.) { $<text> = "\\" ~ $0.Str; } }
 
-        # begin tweaks (DO NOT ERASE)
         multi method tweak (:single(:$q)!) { self.panic("Too late for :q") }
         multi method tweak (:double(:$qq)!) { self.panic("Too late for :qq") }
         multi method tweak (:cclass(:$cc)!) { self.panic("Too late for :cc") }
-        # end tweaks (DO NOT ERASE)
-
-    } # end role
+    }
 
     role qq does b1 does c1 does s1 does a1 does h1 does f1 {
         token stopper { \" }
         # in double quotes, omit backslash on random \W backslash by default
         token backslash:misc { {} [ (\W) { $<text> = $0.Str; } | $<x>=(\w) <.sorry("Unrecognized backslash sequence: '\\" ~ $<x>.Str ~ "'")> ] }
 
-        # begin tweaks (DO NOT ERASE)
         multi method tweak (:single(:$q)!) { self.panic("Too late for :q") }
         multi method tweak (:double(:$qq)!) { self.panic("Too late for :qq") }
         multi method tweak (:cclass(:$cc)!) { self.panic("Too late for :cc") }
-        # end tweaks (DO NOT ERASE)
-
-    } # end role
+    }
 
     role cc {
         token stopper { \' }
@@ -4348,28 +4383,29 @@ grammar Q is STD {
         token backslash:a { :i <sym> }
         token backslash:b { :i <sym> }
         token backslash:c { :i <sym> <charspec> }
+        token backslash:d { :i <sym> { $*CCSTATE = '' } }
         token backslash:e { :i <sym> }
         token backslash:f { :i <sym> }
+        token backslash:h { :i <sym> { $*CCSTATE = '' } }
         token backslash:n { :i <sym> }
         token backslash:o { :i :dba('octal character') <sym> [ <octint> | '[' ~ ']' <octints> ] }
         token backslash:r { :i <sym> }
+        token backslash:s { :i <sym> { $*CCSTATE = '' } }
         token backslash:t { :i <sym> }
+        token backslash:v { :i <sym> { $*CCSTATE = '' } }
+        token backslash:w { :i <sym> { $*CCSTATE = '' } }
         token backslash:x { :i :dba('hex character') <sym> [ <hexint> | '[' ~ ']' <hexints> ] }
         token backslash:sym<0> { <sym> }
 
-        # keep random backslashes like q does
-        token backslash:misc { . }
+        # keep random backslashes like qq does
+        token backslash:misc { {} [ (\W) { $<text> = $0.Str; } | $<x>=(\w) <.sorry("Unrecognized backslash sequence: '\\" ~ $<x>.Str ~ "'")> ] }
 
-        # begin tweaks (DO NOT ERASE)
         multi method tweak (:single(:$q)!) { self.panic("Too late for :q") }
         multi method tweak (:double(:$qq)!) { self.panic("Too late for :qq") }
         multi method tweak (:cclass(:$cc)!) { self.panic("Too late for :cc") }
-        # end tweaks (DO NOT ERASE)
-
-    } # end role
+    }
 
     role p5 {
-        # begin tweaks (DO NOT ERASE)
         multi method tweak (:$g!) { self }
         multi method tweak (:$i!) { self }
         multi method tweak (:$m!) { self }
@@ -4377,10 +4413,7 @@ grammar Q is STD {
         multi method tweak (:$x!) { self }
         multi method tweak (:$p!) { self }
         multi method tweak (:$c!) { self }
-        # end tweaks (DO NOT ERASE)
-    } # end role
-
-    # begin tweaks (DO NOT ERASE)
+    }
 
     multi method tweak (:single(:$q)!) { self.truly($q,':q'); self.mixin( ::q ); }
 
@@ -4409,10 +4442,7 @@ grammar Q is STD {
         my @k = keys(%x);
         self.sorry("Unrecognized quote modifier: " ~ join('',@k));
     }
-    # end tweaks (DO NOT ERASE)
-
-
-} # end grammar
+}
 
 grammar Quasi is STD::P6 {
     token term:unquote {
@@ -4421,7 +4451,6 @@ grammar Quasi is STD::P6 {
         [ <EXPR> <stopper><stopper><stopper> || <.panic: "Confused"> ]
     }
 
-    # begin tweaks (DO NOT ERASE)
     multi method tweak (:$ast!) { self; } # XXX some transformer operating on the normal AST?
     multi method tweak (:$lang!) { self.cursor_fresh( $lang ); }
     multi method tweak (:$unquote!) { self; } # XXX needs to override unquote
@@ -4431,18 +4460,16 @@ grammar Quasi is STD::P6 {
         my @k = keys(%x);
         self.sorry("Unrecognized quasiquote modifier: " ~ join('',@k));
     }
-    # end tweaks (DO NOT ERASE)
-
-} # end grammar
+}
 
 ##############################
 # Operator Precedence Parser #
 ##############################
 
-method EXPR ($preclvl) {
+method EXPR ($preclvl?) {
     my $*CTX ::= self.callm if $*DEBUG +& DEBUG::trace_call;
     my $preclim = $preclvl ?? $preclvl.<prec> // $LOOSEST !! $LOOSEST;
-    my $*LEFTSIGIL = '';
+    my $*LEFTSIGIL = '';        # XXX P6
     my $*PRECLIM = $preclim;
     my @termstack;
     my @opstack;
@@ -4470,17 +4497,15 @@ method EXPR ($preclvl) {
                     push @chain, pop(@opstack);
                 }
                 push @chain, pop(@termstack);
-                for @chain {
-                    $_.<_xact> :delete;
-                }
-                my $endpos = @chain[0]<_pos>;
+                my $endpos = @chain[0].pos;
                 @chain = reverse @chain if @chain > 1;
-                my $startpos = @chain[0]<_from>;
+                my $startpos = @chain[0].from;
                 my $nop = $op.cursor_fresh();
+                $nop.prepbind(@chain);
                 $nop<chain> = [@chain];
                 $nop<_arity> = 'CHAIN';
-                $nop<_from> = $startpos;
-                $nop<_pos> = $endpos;
+                $nop.from = $startpos;
+                $nop.pos = $endpos;
                 my @caps;
                 my $i = 0;
                 for @chain {
@@ -4514,24 +4539,19 @@ method EXPR ($preclvl) {
                 else {
                     self.worry("Missing final term in '" ~ $sym ~ "' list");
                 }
-                for @list {
-                    $_.<_xact> :delete;
-                }
-                for @delims {
-                    $_.<_xact> :delete;
-                }
-                my $endpos = @list[0]<_pos>;
+                my $endpos = @list[0].pos;
                 @list = reverse @list if @list > 1;
-                my $startpos = @list[0]<_from>;
+                my $startpos = @list[0].from;
                 @delims = reverse @delims if @delims > 1;
                 my $nop = $op.cursor_fresh();
+                $nop.prepbind(@list,@delims);
                 $nop<sym> = $sym;
                 $nop<O> = $op<O>;
                 $nop<list> = [@list];
                 $nop<delims> = [@delims];
                 $nop<_arity> = 'LIST';
-                $nop<_from> = $startpos;
-                $nop<_pos> = $endpos;
+                $nop.from = $startpos;
+                $nop.pos = $endpos;
                 if @list {
                     my @caps;
                     push @caps, 'elem', @list[0] if @list[0];
@@ -4552,25 +4572,24 @@ method EXPR ($preclvl) {
                 self.deb("Termstack size: ", +@termstack) if $*DEBUG +& DEBUG::EXPR;
 
                 self.deb($op.dump) if $*DEBUG +& DEBUG::EXPR;
-                my $nop = $op.cursor_fresh();
                 my $arg = pop @termstack;
-                $arg<_xact> :delete;
+                $op.prepbind($arg);
                 $op<arg> = $arg;
                 my $a = $op<~CAPS>;
                 $op<_arity> = 'UNARY';
-                if $arg<_from> < $op<_from> { # postfix
-                    $op<_from> = $arg<_from>;   # extend from to include arg
+                if $arg.from < $op.from { # postfix
+                    $op.from = $arg.from;   # extend from to include arg
 #                    note "OOPS ", $arg.Str, "\n" if @acaps > 1;
                     unshift @$a, 'arg', $arg;
-                    push @termstack, $op._REDUCE($op<_from>, 'POSTFIX');
+                    push @termstack, $op._REDUCE($op.from, 'POSTFIX');
                     @termstack[*-1].<PRE>:delete;
                     @termstack[*-1].<POST>:delete;
                 }
-                elsif $arg<_pos> > $op<_pos> {   # prefix
-                    $op<_pos> = $arg<_pos>;     # extend pos to include arg
+                elsif $arg.pos > $op.pos {   # prefix
+                    $op.pos = $arg.pos;     # extend pos to include arg
 #                    note "OOPS ", $arg.Str, "\n" if @acaps > 1;
                     push @$a, 'arg', $arg;
-                    push @termstack, $op._REDUCE($op<_from>, 'PREFIX');
+                    push @termstack, $op._REDUCE($op.from, 'PREFIX');
                     @termstack[*-1].<PRE>:delete;
                     @termstack[*-1].<POST>:delete;
                 }
@@ -4581,12 +4600,11 @@ method EXPR ($preclvl) {
 
                 my $right = pop @termstack;
                 my $left = pop @termstack;
-                $right<_xact> :delete;
-                $left<_xact> :delete;
+                $op.prepbind($left,$right);
                 $op<right> = $right;
                 $op<left> = $left;
-                $op<_from> = $left<_from>;
-                $op<_pos> = $right<_pos>;
+                $op.from = $left.from;
+                $op.pos = $right.pos;
                 $op<_arity> = 'BINARY';
 
                 my $a = $op<~CAPS>;
@@ -4598,7 +4616,7 @@ method EXPR ($preclvl) {
                 if $ck = $op<O><_reducecheck> {
                     $op = $op.$ck;
                 }
-                push @termstack, $op._REDUCE($op<_from>, 'INFIX');
+                push @termstack, $op._REDUCE($op.from, 'INFIX');
                 @termstack[*-1].<PRE>:delete;
                 @termstack[*-1].<POST>:delete;
             }
@@ -4610,7 +4628,7 @@ method EXPR ($preclvl) {
         self.deb("In loop, at ", $here.pos) if $*DEBUG +& DEBUG::EXPR;
         my $oldpos = $here.pos;
         $here = $here.cursor_fresh();
-        $*LEFTSIGIL = @opstack[*-1]<O><prec> gt $item_assignment_prec ?? '@' !! '';
+        $*LEFTSIGIL = @opstack[*-1]<O><prec> gt $item_assignment_prec ?? '@' !! '';     # XXX P6
         my @t = $here.$termish;
 
         if not @t or not $here = @t[0] or ($here.pos == $oldpos and $termish eq 'termish') {
@@ -4652,11 +4670,11 @@ method EXPR ($preclvl) {
         @termstack[*-1].<POST>:delete;
         self.deb("after push: " ~ (0+@termstack)) if $*DEBUG +& DEBUG::EXPR;
 
-        last TERM if $preclim eq $methodcall_prec; # in interpolation, probably
+        last TERM if $preclim eq $methodcall_prec; # in interpolation, probably   # XXX P6
 
         loop {     # while we see adverbs
             $oldpos = $here.pos;
-            last TERM if (@*MEMOS[$oldpos]<endstmt> // 0) == 2;
+            last TERM if (@*MEMOS[$oldpos]<endstmt> // 0) == 2;   # XXX P6
             $here = $here.cursor_fresh.ws;
             my @infix = $here.cursor_fresh.infixish();
             last TERM unless @infix;
@@ -4672,7 +4690,7 @@ method EXPR ($preclvl) {
             if not defined $inprec {
                 self.deb("No prec given in infix!") if $*DEBUG +& DEBUG::EXPR;
                 die $infix.dump if $*DEBUG +& DEBUG::EXPR;
-                $inprec = %terminator<prec>;
+                $inprec = %terminator<prec>;   # XXX lexical scope is wrong
             }
 
             if $inprec le $preclim {
@@ -4686,9 +4704,6 @@ method EXPR ($preclvl) {
             }
 
             $here = $infix.cursor_fresh.ws();
-
-            # substitute precedence for listops
-            $inO<prec> = $inO<sub> if $inO<sub>;
 
             # Does new infix (or terminator) force any reductions?
             while @opstack[*-1]<O><prec> gt $inprec {
@@ -4731,8 +4746,8 @@ method EXPR ($preclvl) {
     &reduce() while +@opstack > 1;
     if @termstack {
         +@termstack == 1 or $here.panic("Internal operator parser error, termstack == " ~ (+@termstack));
-        @termstack[0]<_from> = self.pos;
-        @termstack[0]<_pos> = $here.pos;
+        @termstack[0].from = self.pos;
+        @termstack[0].pos = $here.pos;
     }
     self._MATCHIFYr($S, "EXPR", @termstack);
 }
@@ -4743,7 +4758,6 @@ method EXPR ($preclvl) {
 
 grammar Regex is STD {
 
-    # begin tweaks (DO NOT ERASE)
     multi method tweak (:Perl5(:$P5)!) { self.require_P5; self.cursor_fresh( %*LANG<Q> ).mixin( ::q ).mixin( ::p5 ) }
     multi method tweak (:overlap(:$ov)!) { %*RX<ov> = $ov; self; }
     multi method tweak (:exhaustive(:$ex)!) { %*RX<ex> = $ex; self; }
@@ -4753,9 +4767,9 @@ grammar Regex is STD {
     multi method tweak (:ratchet(:$r)!) { %*RX<r> = $r; self; }
     multi method tweak (:global(:$g)!) { %*RX<g> = $g; self; }
     multi method tweak (:ignorecase(:$i)!) { %*RX<i> = $i; self; }
-    multi method tweak (:ignoreaccent(:$a)!) { %*RX<a> = $a; self; }
+    multi method tweak (:ignoremark(:$m)!) { %*RX<m> = $m; self; }
     multi method tweak (:samecase(:$ii)!) { %*RX<ii> = $ii; self; }
-    multi method tweak (:sameaccent(:$aa)!) { %*RX<aa> = $aa; self; }
+    multi method tweak (:samemark(:$mm)!) { %*RX<mm> = $mm; self; }
     multi method tweak (:$nth!) { %*RX<nth> = $nth; self; }
     multi method tweak (:st(:$nd)!) { %*RX<nth> = $nd; self; }
     multi method tweak (:rd(:$th)!) { %*RX<nth> = $th; self; }
@@ -4765,44 +4779,44 @@ grammar Regex is STD {
     multi method tweak (:$graphs!) { %*RX<graphs> = $graphs; self; }
     multi method tweak (:$chars!) { %*RX<chars> = $chars; self; }
     multi method tweak (:$rw!) { %*RX<rw> = $rw; self; }
-    # end tweaks (DO NOT ERASE)
 
     token category:metachar { <sym> }
-    proto token metachar { <...> }
+    proto token metachar {*}
 
     token category:backslash { <sym> }
-    proto token backslash { <...> }
+    proto token backslash {*}
 
     token category:assertion { <sym> }
-    proto token assertion { <...> }
+    proto token assertion {*}
 
     token category:quantifier { <sym> }
-    proto token quantifier { <...> }
+    proto token quantifier {*}
+
+    token category:cclass_elem { <sym> }
+    proto token cclass_elem {*}
 
     token category:mod_internal { <sym> }
-    proto token mod_internal { <...> }
+    proto token mod_internal {*}
 
-    proto token regex_infix { <...> }
+    proto token regex_infix {*}
 
-    token ws {
-        <?{ $*RX<s> }>
-        || [ <?before \s | '#'> <.nextsame> ]?   # still get all the pod goodness, hopefully
-    }
+    # no such thing as ignored whitespace in a normal regex
+    token ws { <?> }
 
     token normspace {
-        <?before \s | '#'> [ :lang($¢.cursor_fresh(%*LANG<MAIN>)) <.ws> ]
+        <?before \s | '#'> [ :lang(%*LANG<MAIN>) <.ws> ]
     }
 
-    token unsp { '\\' <?before \s | '#'> <.panic: "No unspace allowed in regex; if you meant to match the literal character, please enclose in single quotes ('" ~ substr($::ORIG,$¢.pos,1) ~ "') or use a backslashed form like \\x" ~ sprintf("%02x", ord(substr($::ORIG,$¢.pos,1)))> }  # no unspace in regexen
+    token unsp { '\\' <?before \s | '#'> <.panic: "No unspace allowed in regex; if you meant to match the literal character, please enclose in single quotes ('" ~ substr(self.orig,$¢.pos,1) ~ "') or use a backslashed form like \\x" ~ sprintf('%02x', ord(substr(self.orig,$¢.pos,1)))> }  # no unspace in regexen
 
     rule nibbler {
         :temp %*RX;
-        [ \s* < || | && & > ]?
+        [ <.normspace>? < || | && & > ]?
         <EXPR>
         [
-        || <?before <stopper> || $*GOAL >
+        || <?infixstopper>
         || $$ <.panic: "Regex not terminated">
-        || \W <.sorry: "Unrecognized regex metacharacter (must be quoted to match literally)">
+        || (\W)<.sorry("Unrecognized regex metacharacter " ~ $0.Str ~ " (must be quoted to match literally)")>
         || <.panic: "Regex not terminated">
         ]
     }
@@ -4810,20 +4824,23 @@ grammar Regex is STD {
     token termish {
         <.ws>
         [
-        || <term=.quant_atom_list>
-        || <?before <stopper> | <[&|~]> > <.panic: "Null pattern not allowed">
-        || <?before <[ \] \) \> ]> > {{
-                my $c = substr($*ORIG,$¢.pos,1);
-                if $*GOAL eq $c {
-                    $¢.panic("Null pattern not allowed");
+        || <term=.quant_atom_list> <?{ %*RX<s> or $<term>.Str ~~ /\S/ }>
+        || <normspace>?
+            [
+            || <?before <stopper> | <[&|~]> > <.panic: "Null pattern not allowed">
+            || <?before <[ \] \) \> ]> > {
+                    my $c = substr(self.orig,$¢.pos,1);
+                    if $*GOAL eq $c {
+                        $¢.panic("Null pattern not allowed");
+                    }
+                    else {
+                        $¢.panic("Unmatched closing $c");
+                    }
                 }
-                else {
-                    $¢.panic("Unmatched closing $c");
-                }
-            }}
-        || $$ <.panic: "Regex not terminated">
-        || \W <.sorry: "Unrecognized regex metacharacter (must be quoted to match literally)">
-        || <.panic: "Regex not terminated">
+            || $$ <.panic: "Regex not terminated">
+            || (\W) <.sorry: "Unrecognized regex metacharacter " ~ $0.Str ~ " (must be quoted to match literally)">
+            || <.panic: "Regex not terminated">
+            ]
         ]
     }
     token quant_atom_list {
@@ -4833,30 +4850,34 @@ grammar Regex is STD {
         <!infixstopper>
         <!stdstopper>
         <regex_infix>
-        {
-            $<O> = $<regex_infix><O>;
-            $<sym> = $<regex_infix><sym>;
-        }
+        $<O> = {$<regex_infix><O>}
+        $<sym> = {$<regex_infix><sym>}
     }
     regex infixstopper {
         :dba('infix stopper')
-        <?before <stopper> >
+        [
+        | <?before <[\) \} \]]> >
+        | <?before '>' <-[>]> >
+        | <?before <stopper> >
+        ]
     }
 
     token regex_infix:sym<||> { <sym> <O(|%tight_or)>  }
     token regex_infix:sym<&&> { <sym> <O(|%tight_and)>  }
     token regex_infix:sym<|> { <sym> <O(|%junctive_or)>  }
     token regex_infix:sym<&> { <sym> <O(|%junctive_and)>  }
-    token regex_infix:sym<~> { <sym> <O(|%additive)>  }
 
     token quantified_atom {
         <!stopper>
         <!regex_infix>
         <atom>
-        <.ws>
-        [ <quantifier> <.ws> ]?
+        [ <normspace>? <quantifier> <normspace>? <separator>? ]?
 #            <?{ $<atom>.max_width }>
-#                || <.panic: "Can't quantify zero-width atom">
+#                || <.panic: "Cannot quantify zero-width atom">
+    }
+
+    token separator {
+        '%''%'? <normspace>? <quantified_atom>
     }
 
     token atom {
@@ -4868,7 +4889,7 @@ grammar Regex is STD {
     }
 
     # sequence stoppers
-    token metachar:sym« > » { '>'  :: <fail> }
+    token metachar:sym« > » { '>'<!before '>'> :: <fail> }
     token metachar:sym<&&>  { '&&' :: <fail> }
     token metachar:sym<&>   { '&'  :: <fail> }
     token metachar:sym<||>  { '||' :: <fail> }
@@ -4884,7 +4905,8 @@ grammar Regex is STD {
         ]
     }
 
-    token metachar:quant { <quantifier> <.sorry: "quantifier quantifies nothing"> }
+    token metachar:sym<{*}> { <onlystar=.sym> <?{ $*MULTINESS eq 'proto' }> }
+    token metachar:quant { <quantifier> <.sorry: "Quantifier quantifies nothing"> }
 
     # "normal" metachars
 
@@ -4896,12 +4918,13 @@ grammar Regex is STD {
     token metachar:sym<{ }> {
         <?before '{'>
         <embeddedblock>
-        {{ $/<sym> := <{ }> }}
+        $<sym> = { <{ }> }
     }
 
     token metachar:mod {
+        <?before ':'>
         <mod_internal>
-        { $/<sym> := $<mod_internal><sym> }
+        $<sym> = {$<mod_internal><sym>}
     }
 
     token metachar:sym<-> {
@@ -4909,10 +4932,14 @@ grammar Regex is STD {
     }
 
     token metachar:sym<:> {
-        <sym>
+        <sym> <?before \s> <.panic: "Backtrack control ':' does not seem to have a preceding atom to control">
     }
 
     token metachar:sym<::> {
+        <sym>
+    }
+
+    token metachar:sym«::>» {
         <sym>
     }
 
@@ -4924,13 +4951,18 @@ grammar Regex is STD {
         :dba("bracketed regex")
         '[' ~ ']' <nibbler>
         { $¢.check_old_cclass($<nibbler>.Str); }
-        { $/<sym> := <[ ]>; }
+        $<sym> = {<[ ]>}
     }
 
+    token metachar:sym<(?: )> { '(?:' <.obs("(?: ... ) for grouping", "[ ... ]")> }
+    token metachar:sym<(?= )> { '(?:' <.obs("(?= ... ) for lookahead", "<?before ... >")> }
+    token metachar:sym<(?! )> { '(?:' <.obs("(?! ... ) for lookahead", "<!before ... >")> }
+    token metachar:sym<(?\<= )> { '(?:' <.obs("(?<= ... ) for lookbehind", "<?after ... >")> }
+    token metachar:sym<(?\<! )> { '(?:' <.obs("(?<! ... ) for lookbehind", "<!after ... >")> }
     token metachar:sym<( )> {
         :dba("capture parens")
         '(' ~ ')' <nibbler>
-        { $/<sym> := <( )> }
+        $<sym> = {<( )>}
     }
 
     token metachar:sym« <( » { '<(' }
@@ -4972,19 +5004,24 @@ grammar Regex is STD {
         >
     }
 
-    token metachar:sym<' '> { <?before "'"> [:lang($¢.cursor_fresh(%*LANG<MAIN>)) <quote>] }
-    token metachar:sym<" "> { <?before '"'> [:lang($¢.cursor_fresh(%*LANG<MAIN>)) <quote>] }
+    token metachar:sym<' '> { <?before "'"> [:lang(%*LANG<MAIN>) <quote>] }
+    token metachar:sym<" "> { <?before '"'> [:lang(%*LANG<MAIN>) <quote>] }
 
     token metachar:var {
-        :my $*QSIGIL ::= '$';
+        :my $*QSIGIL ::= substr(self.orig,self.pos,1);
         <!before '$$'>
         <?before <sigil>>
-        [:lang($¢.cursor_fresh(%*LANG<MAIN>)) <termish> ]
-        $<binding> = ( <.ws> '=' <.ws> <quantified_atom> )?
-        { $<sym> = $<termish><term>.Str; }
+        [:lang(%*LANG<MAIN>) <variable> ]
+        $<sym> = {$<variable>.Str}
+        [
+        || $<binding> = ( \s* '=' \s* <quantified_atom> )
+           { $¢.check_variable($<variable>) unless substr($<sym>,1,1) eq '<' }
+        || { $¢.check_variable($<variable>) }
+           [ <?before '.'? <[ \[ \{ \< ]>> <.worry: "Apparent subscript will be treated as regex"> ]?
+        ]
     }
 
-    token backslash:unspace { <?before \s> <.SUPER::ws> }
+    token backslash:unspace { <?before \s> [ :lang( %*LANG<MAIN> ) <.ws> ] }
 
     token backslash:sym<0> { '0' <!before <[0..7]> > }
 
@@ -4999,6 +5036,18 @@ grammar Regex is STD {
     token backslash:h { :i <sym> }
     token backslash:n { :i <sym> }
     token backslash:o { :i :dba('octal character') <sym> [ <octint> | '[' ~ ']' <octints> ] }
+    token backslash:p {
+        :my $s;
+        :my $m;
+        :my $p;
+        <sym=[pP]>
+        { $s = $<sym>.Str; $m = $s lt 'a' ?? '-' !! ''; }
+        [
+        || (\w) { $p = $0.Str; $¢.obs("\\$s$p", '<' ~ $m ~ ":$p>"); }
+        || '{' $<param>=[\w+] '}' { $p = $<param>.Str; $¢.obs("\\$s\{$p\}", '<' ~ $m ~ ":$p>"); }
+        || '{' $<param>=[\w+] \= $<val>=[<-[\}]>*] '}' { $p = $<param>.Str; my $v = $<val>.Str; $¢.obs("\\$s\{$p=$v\}", '<' ~ $m ~ ":$p\('$v')>"); }
+        ]
+    }
     token backslash:Q { <sym> <.obs('\\Q as quotemeta', 'quotes or literal variable match')> }
     token backslash:r { :i <sym> }
     token backslash:s { :i <sym> }
@@ -5016,6 +5065,7 @@ grammar Regex is STD {
     token assertion:sym<???> { <sym> }
     token assertion:sym<!!!> { <sym> }
 
+    token assertion:sym<|> { <sym> [ <?before '>'> | <?before \w> <assertion> ] }  # assertion-like syntax, anyway
     token assertion:sym<?> { <sym> [ <?before '>'> | <assertion> ] }
     token assertion:sym<!> { <sym> [ <?before '>'> | <assertion> ] }
     token assertion:sym<*> { <sym> [ <?before '>'> | <.ws> <nibbler> ] }
@@ -5036,20 +5086,25 @@ grammar Regex is STD {
 
     token assertion:name { [ :lang($¢.cursor_fresh(%*LANG<MAIN>).unbalanced('>')) <longname> ]
                                     [
-                                    | <?before '>' >
-                                    | <.ws> <nibbler>
+                                    | <?before '>' > {
+                                        my $n = $<longname>.Str;
+                                        if $n eq 'before' or $n eq 'after' {
+                                            $¢.panic("$n requires an argument");
+                                        }
+                                    }
+                                    | <.normspace>? <nibbler> <.ws>
                                     | '=' <assertion>
-                                    | ':' <.ws>
-                                        [ :lang($¢.cursor_fresh(%*LANG<MAIN>).unbalanced('>')) <arglist> ]
+                                    | ':' [ :lang($¢.cursor_fresh(%*LANG<MAIN>).unbalanced('>')) <.ws> <arglist> ]
                                     | '(' {}
-                                        [ :lang($¢.cursor_fresh(%*LANG<MAIN>)) <arglist> ]
+                                        [ :lang(%*LANG<MAIN>) <arglist> ]
                                         [ ')' || <.panic: "Assertion call missing right parenthesis"> ]
                                     ]?
     }
 
-    token assertion:sym<[> { <?before '['> <cclass_elem>+ }
-    token assertion:sym<+> { <?before '+'> <cclass_elem>+ }
-    token assertion:sym<-> { <?before '-'> <cclass_elem>+ }
+    token assertion:sym<:> { <?before ':'> <cclass_expr> }
+    token assertion:sym<[> { <?before '['> <cclass_expr> }
+    token assertion:sym<+> { <?before '+'> <cclass_expr> }
+    token assertion:sym<-> { <?before '-'> <cclass_expr> }
     token assertion:sym<.> { <sym> }
     token assertion:sym<,> { <sym> }
     token assertion:sym<~~> { <sym> [ <?before '>'> | \d+ | <desigilname> ] }
@@ -5057,21 +5112,58 @@ grammar Regex is STD {
     token assertion:bogus { <.panic: "Unrecognized regex assertion"> }
 
     token sign { '+' | '-' | <?> }
-    token cclass_elem {
-        :my $*CCSTATE = '';
-        :dba('character class element')
-        <sign>
+    token cclass_expr {
+        ::
         <.normspace>?
-        [
-        | <name>
-        | <before '['> <quibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:cc))>
-        ]
+        <sign>
+        <cclass_union> ** [$<op>=[ '|' | '^' ]]
+    }
+
+    token cclass_union {
+        <.normspace>?
+        <cclass_add> ** [$<op>=[ '&' ]]
+    }
+
+    token cclass_add {
+        <.normspace>?
+        <cclass_elem> ** [$<op>=[ '+' | '-' ]<.normspace>?]
+    }
+
+    token cclass_elem:name {
+        :dba('character class element')
+        <name>
         <.normspace>?
     }
 
-    token mod_arg { :dba('modifier argument') '(' ~ ')' [:lang($¢.cursor_fresh(%*LANG<MAIN>)) <semilist> ] }
+    token cclass_elem:sym<[ ]> {
+        :my $*CCSTATE = '';
+        :dba('character class element')
+        "[" ~ "]" <nibble($¢.cursor_fresh( %*LANG<Q> ).tweak(:cc).unbalanced("]"))>
+        <.normspace>?
+    }
 
-    token mod_internal:sym<:my>    { ':' <?before ['my'|'state'|'our'|'anon'|'constant'|'temp'|'let'] \s > [:lang($¢.cursor_fresh(%*LANG<MAIN>)) <statement> <eat_terminator> ] }
+    token cclass_elem:sym<( )> {
+        :my $*CCSTATE = '';
+        :dba('character class element')
+        '(' ~ ')' <cclass_expr>
+        <.normspace>?
+    }
+
+    token cclass_elem:property {
+        :dba('character class element')
+        [:lang(%*LANG<MAIN>) <colonpair> ]
+        <.normspace>?
+    }
+
+    token cclass_elem:quote {
+        <?before '"' | "'">
+        [:lang(%*LANG<MAIN>) <quote> ]
+        <.normspace>?
+    }
+
+    token mod_arg { :dba('modifier argument') '(' ~ ')' [:lang(%*LANG<MAIN>) <semilist> ] }
+
+    token mod_internal:sym<:my>    { ':' <?before ['my'|'state'|'our'|'anon'|'constant'|'temp'|'let'] \s > [:lang(%*LANG<MAIN>) <statement> <eat_terminator> ] }
 
     # XXX needs some generalization
 
@@ -5080,10 +5172,10 @@ grammar Regex is STD {
     token mod_internal:sym<:i( )> { $<sym>=[':i'|':ignorecase'] <mod_arg> { %*RX<i> = eval $<mod_arg>.Str } }
     token mod_internal:sym<:0i>   { ':' (\d+) ['i'|'ignorecase'] { %*RX<i> = $0 } }
 
-    token mod_internal:sym<:a>    { $<sym>=[':a'|':ignoreaccent'] » { %*RX<a> = 1 } }
-    token mod_internal:sym<:!a>   { $<sym>=[':!a'|':!ignoreaccent'] » { %*RX<a> = 0 } }
-    token mod_internal:sym<:a( )> { $<sym>=[':a'|':ignoreaccent'] <mod_arg> { %*RX<a> = eval $<mod_arg>.Str } }
-    token mod_internal:sym<:0a>   { ':' (\d+) ['a'|'ignoreaccent'] { %*RX<a> = $0 } }
+    token mod_internal:sym<:m>    { $<sym>=[':m'|':ignoremark'] » { %*RX<m> = 1 } }
+    token mod_internal:sym<:!m>   { $<sym>=[':!m'|':!ignoremark'] » { %*RX<m> = 0 } }
+    token mod_internal:sym<:m( )> { $<sym>=[':m'|':ignoremark'] <mod_arg> { %*RX<m> = eval $<mod_arg>.Str } }
+    token mod_internal:sym<:0m>   { ':' (\d+) ['m'|'ignoremark'] { %*RX<m> = $0 } }
 
     token mod_internal:sym<:s>    { ':s' 'igspace'? » { %*RX<s> = 1 } }
     token mod_internal:sym<:!s>   { ':!s' 'igspace'? » { %*RX<s> = 0 } }
@@ -5098,21 +5190,26 @@ grammar Regex is STD {
     token mod_internal:sym<:Perl5>    { [':Perl5' | ':P5'] <.require_P5> [ :lang( $¢.cursor_fresh( %*LANG<P5Regex> ).unbalanced($*GOAL) ) <nibbler> ] }
 
     token mod_internal:p6adv {
-        <?before ':' ['dba'|'lang'] » > [ :lang($¢.cursor_fresh(%*LANG<MAIN>)) <quotepair> ] { $/<sym> := «: $<quotepair><key>» }
+        <?before ':' ['dba'|'lang'] » > [ :lang(%*LANG<MAIN>) <quotepair> ] $<sym> = {':' ~ $<quotepair><k>}
     }
 
-    token mod_internal:oops { (':'\w+) <.sorry: "Unrecognized regex modifier " ~ $0.Str > }
+    token mod_internal:oops { {} (':'\w+) <.sorry: "Unrecognized regex modifier " ~ $0.Str > }
 
     token quantifier:sym<*>  { <sym> <quantmod> }
     token quantifier:sym<+>  { <sym> <quantmod> }
     token quantifier:sym<?>  { <sym> <quantmod> }
+    token quantifier:sym<:>  { <sym> {} <?before \s> }
     token quantifier:sym<**> { <sym> :: <normspace>? <quantmod> <normspace>?
         [
         | \d+ \s+ '..' <.panic: "Spaces not allowed in bare range">
-        | \d+ [ '..' [ \d+ | '*' | <.panic: "Malformed range"> ] ]?
+        | (\d+) [ '..' [ (\d+) { $¢.panic("Empty range") if $0.Str > $1[0].Str } | '*' | <.panic: "Malformed range"> ] ]?
         | <embeddedblock>
-        | <quantified_atom>
+        | {} <quantified_atom> <.worryobs("atom ** " ~ $<quantified_atom>.Str ~ " as separator", "atom+ % " ~ $<quantified_atom>.Str, " nowadays")>
         ]
+    }
+
+    token quantifier:sym<~> {
+        <sym> :: <normspace>? <quantified_atom> <normspace>? <quantified_atom>
     }
 
     token quantifier:sym<~~> {
@@ -5124,7 +5221,16 @@ grammar Regex is STD {
 
     token quantmod { ':'? [ '?' | '!' | '+' ]? }
 
-} # end grammar
+    token quantifier:sym<{N,M}> {
+        {} '{' (\d+) (','?) (\d*) '}'
+        {
+            my $all = substr(self.orig, self.pos, $¢.pos - self.pos);
+            my $repl = chars($1.Str) ??
+                ($0.Str ~ '..' ~ ($2.Str || '*')) !! $0.Str;
+            $¢.sorryobs($all ~ " as general quantifier", 'X**' ~ $repl);
+        }
+    }
+}
 
 method require_P5 {
     require STD_P5;
@@ -5140,43 +5246,46 @@ method require_P6 {
 # Symbol tables #
 #################
 
-method newpad ($needsig = 0) {
-    my $oid = $*CURPAD.id;
-    $ALL.{$oid} === $*CURPAD or die "internal error: current pad id is invalid";
+method newlex ($needsig = 0) {
+    my $oid = $*CURLEX.id;
+    $ALL.{$oid} === $*CURLEX or die "internal error: current lex id is invalid";
     my $line = self.lineof(self.pos);
     my $id;
-    if $*NEWPAD {
-        $*NEWPAD.<OUTER::> = $*CURPAD.idref;
-        $*CURPAD = $*NEWPAD;
-        $*NEWPAD = 0;
-        $id = $*CURPAD.id;
+    if $*NEWLEX {
+        $*NEWLEX.<OUTER::> = $*CURLEX.idref;
+        $*CURLEX = $*NEWLEX;
+        $*NEWLEX = 0;
+        $id = $*CURLEX.id;
     }
     else {
         $id = 'MY:file<' ~ $*FILE<name> ~ '>:line(' ~ $line ~ '):pos(' ~ self.pos ~ ')';
-        $*CURPAD = Stash.new(
+        $*CURLEX = Stash.new(
             'OUTER::' => [$oid],
             '!file' => $*FILE, '!line' => $line,
             '!id' => [$id],
         );
     }
-    $*CURPAD.<!NEEDSIG> = 1 if $needsig;
-    $ALL.{$id} = $*CURPAD;
+    $*CURLEX.<!NEEDSIG> = 1 if $needsig;
+    $*CURLEX.<!IN_DECL> = $*IN_DECL if $*IN_DECL;
+    $ALL.{$id} = $*CURLEX;
+    self.<LEX> = $*CURLEX;
+    $*DECLARAND<curlex> = $*CURLEX if $*DECLARAND;
     self;
 }
 
-method finishpad {
+method finishlex {
     my $line = self.lineof(self.pos);
-    $*CURPAD<$_> //= NAME.new( name => '$_', file => $*FILE, line => $line );
-    $*CURPAD<$/> //= NAME.new( name => '$/', file => $*FILE, line => $line );
-    $*CURPAD<$!> //= NAME.new( name => '$!', file => $*FILE, line => $line );
+    $*CURLEX<$_> //= NAME.new( name => '$_', file => $*FILE, line => $line, dynamic => 1, scope => 'my' );
+    $*CURLEX<$/> //= NAME.new( name => '$/', file => $*FILE, line => $line, dynamic => 1, scope => 'my' );
+    $*CURLEX<$!> //= NAME.new( name => '$!', file => $*FILE, line => $line, dynamic => 1, scope => 'my' );
     $*SIGNUM = 0;
     self;
 }
 
 method getsig {
-    my $pv = $*CURPAD.{'%?PLACEHOLDERS'};
+    my $pv = $*CURLEX.{'%?PLACEHOLDERS'};
     my $sig;
-    if $*CURPAD.<!NEEDSIG>:delete {
+    if $*CURLEX.<!NEEDSIG>:delete {
         if $pv {
             my $h_ = $pv.<%_>:delete;
             my $a_ = $pv.<@_>:delete;
@@ -5187,13 +5296,28 @@ method getsig {
         else {
             $sig = '$_ is ref = OUTER::<$_>';
         }
-        $*CURPAD.<$?SIGNATURE> = $sig;
+        $*CURLEX.<$?SIGNATURE> = $sig;
     }
     else {
-        $sig = $*CURPAD.<$?SIGNATURE>;
+        $sig = $*CURLEX.<$?SIGNATURE>;
     }
     self.<sig> = self.makestr(TEXT => $sig);
-    self.<pad> = $*CURPAD.idref;
+    self.<lex> = $*CURLEX.idref;
+    if ($*DECLARAND<mult>//'') ne 'proto' {
+        for keys %$*CURLEX {
+            my $desc = $*CURLEX{$_};
+            next unless $_ ~~ m/(\$|\@|\%|\&)\w/;
+            next if $_ eq '$_' or $_ eq '@_' or $_ eq '%_';
+            next if $desc<used>;
+            next if $desc<rebind>;
+            next if $desc<dynamic>;
+            next if $desc<scope> eq 'our';
+            next if $desc<scope> eq 'state';
+            next if $desc<stub>;
+            my $pos = $desc<declaredat> // self.pos;
+            self.cursor($pos).worry("$_ is declared but not used");
+        }
+    }
     self;
 }
 
@@ -5202,7 +5326,7 @@ method getdecl {
     self;
 }
 
-method is_name ($n, $curpad = $*CURPAD) {
+method is_name ($n, $curlex = $*CURLEX) {
     my $name = $n;
     self.deb("is_name $name") if $*DEBUG +& DEBUG::symtab;
 
@@ -5226,9 +5350,9 @@ method is_name ($n, $curpad = $*CURPAD) {
             $curpkg = $curpkg.{$pkg};
             return False unless $curpkg;
             try {
-                my $outpadid = $curpkg.[0];
-                return False unless $outpadid;
-                $curpkg = $ALL.{$outpadid};
+                my $outlexid = $curpkg.[0];
+                return False unless $outlexid;
+                $curpkg = $ALL.{$outlexid};
                 return False unless $curpkg;
             };
             self.deb("Found $pkg okay") if $*DEBUG +& DEBUG::symtab;
@@ -5237,15 +5361,16 @@ method is_name ($n, $curpad = $*CURPAD) {
     $name = shift(@components)//'';
     self.deb("Looking for $name") if $*DEBUG +& DEBUG::symtab;
     return True if $name eq '';
-    my $pad = $curpad;
-    while $pad {
-        self.deb("Looking in ", $pad.id) if $*DEBUG +& DEBUG::symtab;
-        if $pad.{$name} {
-            self.deb("Found $name in ", $pad.id) if $*DEBUG +& DEBUG::symtab;
+    my $lex = $curlex;
+    while $lex {
+        self.deb("Looking in ", $lex.id) if $*DEBUG +& DEBUG::symtab;
+        if $lex.{$name} {
+            self.deb("Found $name in ", $lex.id) if $*DEBUG +& DEBUG::symtab;
+            $lex.{$name}<used> = 1;
             return True;
         }
-        my $oid = $pad.<OUTER::>[0] || last;
-        $pad = $ALL.{$oid};
+        my $oid = $lex.<OUTER::>[0] || last;
+        $lex = $ALL.{$oid};
     }
     return True if $curpkg.{$name};
     return True if $*GLOBAL.{$name};
@@ -5253,7 +5378,7 @@ method is_name ($n, $curpad = $*CURPAD) {
     return False;
 }
 
-method find_stash ($n, $curpad = $*CURPAD) {
+method find_stash ($n, $curlex = $*CURLEX) {
     my $name = $n;
     self.deb("find_stash $name") if $*DEBUG +& DEBUG::symtab;
 
@@ -5263,37 +5388,37 @@ method find_stash ($n, $curpad = $*CURPAD) {
         return () if @components[0] eq 'COMPILING::';
         return () if @components[0] eq 'CALLER::';
         return () if @components[0] eq 'CONTEXT::';
-        if $curpad = self.find_top_pkg(@components[0]) {
+        if $curlex = self.find_top_pkg(@components[0]) {
             self.deb("Found lexical package ", @components[0]) if $*DEBUG +& DEBUG::symtab;
             shift @components;
         }
         else {
             self.deb("Looking for GLOBAL::<$name>") if $*DEBUG +& DEBUG::symtab;
-            $curpad = $*GLOBAL;
+            $curlex = $*GLOBAL;
         }
         while @components > 1 {
-            my $pad = shift @components;
-            $curpad = $curpad.{$pad};
-            return () unless $curpad;
+            my $lex = shift @components;
+            $curlex = $curlex.{$lex};
+            return () unless $curlex;
             try {
-                my $outpadid = $curpad.[0];
-                return False unless $outpadid;
-                $curpad = $ALL.{$outpadid};
-                return () unless $curpad;
+                my $outlexid = $curlex.[0];
+                return False unless $outlexid;
+                $curlex = $ALL.{$outlexid};
+                return () unless $curlex;
             };
-            self.deb("Found $pad okay") if $*DEBUG +& DEBUG::symtab;
+            self.deb("Found $lex okay") if $*DEBUG +& DEBUG::symtab;
         }
     }
     $name = shift(@components)//'';
-    return $curpad if $name eq '';
+    return $curlex if $name eq '';
 
-    my $pad = $curpad;
-    while $pad {
-        return $_ if $_ = $pad.{$name};
-        my $oid = $pad.<OUTER::>[0] || last;
-        $pad = $ALL.{$oid};
+    my $lex = $curlex;
+    while $lex {
+        return $_ if $_ = $lex.{$name};
+        my $oid = $lex.<OUTER::>[0] || last;
+        $lex = $ALL.{$oid};
     }
-    return $_ if $_ = $curpad.{$name};
+    return $_ if $_ = $curlex.{$name};
     return $_ if $_ = $*GLOBAL.{$name};
     return ();
 }
@@ -5305,10 +5430,10 @@ method find_top_pkg ($name) {
         return $*CURPKG;
     }
     elsif $name eq 'MY::' {
-        return $*CURPAD;
+        return $*CURLEX;
     }
     elsif $name eq 'OUTER::' {
-        return $ALL.{$*CURPAD.<OUTER::>[0]};
+        return $ALL.{$*CURLEX.<OUTER::>[0]};
     }
     elsif $name eq 'CORE::' {
         return $*CORE;
@@ -5320,11 +5445,11 @@ method find_top_pkg ($name) {
         return $*UNIT;
     }
     # everything is somewhere in lexical scope (we hope)
-    my $pad = $*CURPAD;
-    while $pad {
-        return $pad.{$name} if $pad.{$name};
-        my $oid = $pad.<OUTER::>[0] || last;
-        $pad = $ALL.{$oid};
+    my $lex = $*CURLEX;
+    while $lex {
+        return $lex.{$name} if $lex.{$name};
+        my $oid = $lex.<OUTER::>[0] || last;
+        $lex = $ALL.{$oid};
     }
     return 0;
 }
@@ -5336,9 +5461,9 @@ method add_name ($name) {
     self.deb("Adding $scope $name") if $*DEBUG +& DEBUG::symtab;
     if $scope eq 'augment' or $scope eq 'supersede' {
         self.is_name($name) or
-            self.worry("Can't $scope $pkgdecl $name because it doesn't exist");
+            self.worry("Cannot $scope $pkgdecl $name because it doesn't exist");
         $*MONKEY_TYPING or
-            self.sorry("Can't $scope $pkgdecl $name without MONKEY_TYPING");
+            self.sorry("Cannot $scope $pkgdecl $name without MONKEY_TYPING");
     }
     else {
         if $scope eq 'our' {
@@ -5353,9 +5478,9 @@ method add_name ($name) {
 
 method add_my_name ($n, $d = Nil, $p = Nil) {   # XXX gimme doesn't handle optionals right
     my $name = $n;
-    self.deb("add_my_name $name in ", $*CURPAD.id) if $*DEBUG +& DEBUG::symtab;
+    self.deb("add_my_name $name in ", $*CURLEX.id) if $*DEBUG +& DEBUG::symtab;
     return self if $name ~~ /\:\:\(/;
-    my $curstash = $*CURPAD;
+    my $curstash = $*CURLEX;
     my @components = self.canonicalize_name($name);
     my $sid = $curstash.id // '???';
     while @components > 1 {
@@ -5371,6 +5496,7 @@ method add_my_name ($n, $d = Nil, $p = Nil) {   # XXX gimme doesn't handle optio
     $name = my $shortname = shift @components;
     return self unless defined $name and $name ne '';
     return self if $name eq '$' or $name eq '@' or $name eq '%';
+    return self.add_categorical(substr($name,1)) if $name ~~ /^\&\w+\:/;
     if $shortname ~~ /\:/ {
         $shortname ~~ s/\:.*//;
     }
@@ -5378,10 +5504,11 @@ method add_my_name ($n, $d = Nil, $p = Nil) {   # XXX gimme doesn't handle optio
     # This may just be a lexical alias to "our" and such,
     # so reuse $*DECLARAND pointer if it's there.
     my $declaring = $d // NAME.new(
-        xpad => $curstash.idref,
         name => $name,
         file => $*FILE, line => self.line,
         mult => ($*MULTINESS||'only'),
+        of   => $*OFTYPE,
+        scope => $*SCOPE,
     );
     my $old = $curstash.{$name};
     if $old and $old<line> and not $old<stub> {
@@ -5390,7 +5517,7 @@ method add_my_name ($n, $d = Nil, $p = Nil) {   # XXX gimme doesn't handle optio
         if $declaring === $old {}  # already did this, probably enum
         elsif $*SCOPE eq 'use' {}
         elsif $*MULTINESS eq 'multi' and $omult ne 'only' {}
-        elsif $omult eq 'proto' {}
+        elsif $omult eq 'proto' and $*MULTINESS ne 'proto' and $*MULTINESS ne 'only' {}
         elsif $*PKGDECL eq 'role' {}
         elsif $*SIGNUM and $old<signum> and $*SIGNUM != $old<signum> {
             $old<signum> = $*SIGNUM;
@@ -5408,7 +5535,7 @@ method add_my_name ($n, $d = Nil, $p = Nil) {   # XXX gimme doesn't handle optio
                     $loc = " (see line $oline)";
                 }
             }
-            if $old.opad {
+            if $old.olex {
                 my $rebind = $old<rebind>;
                 my $truename = $old<varbind><truename>;
                 self.sorry("Lexical symbol '$name' is already bound to an outer symbol$loc;\n  the implicit outer binding at line $rebind must be rewritten as $truename\n  before you can unambiguously declare a new '$name' in this scope");
@@ -5422,21 +5549,27 @@ method add_my_name ($n, $d = Nil, $p = Nil) {   # XXX gimme doesn't handle optio
             else {  # XXX eventually check for conformant arrays here
                 self.worry("Useless redeclaration of variable $name$loc");
             }
+            return self;
         }
     }
     else {
         $*DECLARAND = $curstash.{$name} = $declaring;
         $curstash.{$shortname} = $declaring unless $shortname eq $name;
-        $*DECLARAND<inpad> = $curstash.idref;
+        $*DECLARAND<declaredat> = self.pos;
+        $*DECLARAND<inlex> = $curstash.idref;
         $*DECLARAND<signum> = $*SIGNUM if $*SIGNUM;
         $*DECLARAND<const> ||= 1 if $*IN_DECL eq 'constant';
+        $*DECLARAND<used> = 1 if substr($name,0,1) eq '&' and %*MYSTERY{substr($name,1)};
         if !$*DECLARAND<const> and $shortname ~~ /^\w+$/ {
-            $curstash.{"&$shortname"} //= $curstash.{$shortname};
+            $curstash.{"\&$shortname"} //= $curstash.{$shortname};
+            $curstash.{"\&$shortname"}<used> = 1;
             $sid ~= "::$name";
-            $*NEWPAD = $curstash.{$name ~ '::'} //= ($p // Stash.new(
-                'PARENT::' => $curstash.idref,
-                '!file' => $*FILE, '!line' => self.line,
-                '!id' => [$sid] ));
+            if $name !~~ /\:\</ {
+                $*NEWPKG = $curstash.{$name ~ '::'} = ($p // Stash.new(
+                    'PARENT::' => $curstash.idref,
+                    '!file' => $*FILE, '!line' => self.line,
+                    '!id' => [$sid] ));
+            }
         }
     }
     self;
@@ -5476,10 +5609,11 @@ method add_our_name ($n) {
     }
 
     my $declaring = $*DECLARAND // NAME.new(
-        xpad => $curstash.idref,
         name => $name,
         file => $*FILE, line => self.line,
         mult => ($*MULTINESS||'only'),
+        of   => $*OFTYPE,
+        scope => $*SCOPE,
     );
     my $old = $curstash.{$name};
     if $old and $old<line> and not $old<stub> {
@@ -5487,7 +5621,7 @@ method add_our_name ($n) {
         if $declaring === $old {} # already did it somehow
         elsif $*SCOPE eq 'use' {}
         elsif $*MULTINESS eq 'multi' and $omult ne 'only' {}
-        elsif $omult eq 'proto' {}
+        elsif $omult eq 'proto' and $*MULTINESS ne 'proto' and $*MULTINESS ne 'only' {}
         elsif $*PKGDECL eq 'role' {}
         else {
             my $ofile = $old.file // 0;
@@ -5506,12 +5640,13 @@ method add_our_name ($n) {
             if $name ~~ /^\w/ {
                 self.sorry("Illegal redeclaration of symbol '$sid'$loc");
             }
-            elsif $name ~~ /^\&/ {
+            elsif $name ~~ s/^\&// {
                 self.sorry("Illegal redeclaration of routine '$sid'$loc") unless $name eq '';
             }
             else {  # XXX eventually check for conformant arrays here
                 # (redeclaration of identical package vars is not useless)
             }
+            return self;
         }
     }
     else {
@@ -5519,7 +5654,8 @@ method add_our_name ($n) {
         $curstash.{$shortname} //= $declaring unless $shortname eq $name;
         $*DECLARAND<inpkg> = $curstash.idref;
         if $shortname ~~ /^\w+$/ and $*IN_DECL ne 'constant' {
-            $curstash.{"&$shortname"} //= $declaring;
+            $curstash.{"\&$shortname"} //= $declaring;
+            $curstash.{"\&$shortname"}<used> = 1;
             $sid ~= "::$name";
             $*NEWPKG = $curstash.{$name ~ '::'} //= Stash.new(
                 'PARENT::' => $curstash.idref,
@@ -5534,16 +5670,16 @@ method add_our_name ($n) {
 method add_mystery ($token,$pos,$ctx) {
     my $name = $token.Str;
     return self if $*IN_PANIC;
-    if not self.is_known($name) {
-        self.deb("add_mystery $name $*CURPAD") if $*DEBUG +& DEBUG::symtab;
-        %*MYSTERY{$name}.<pad> = $*CURPAD;
+    if self.is_known('&' ~ $name) or self.is_known($name) {
+        self.deb("$name is known") if $*DEBUG +& DEBUG::symtab;
+    }
+    else {
+        self.deb("add_mystery $name $*CURLEX") if $*DEBUG +& DEBUG::symtab;
+        %*MYSTERY{$name}.<lex> = $*CURLEX;
         %*MYSTERY{$name}.<token> = $token;
         %*MYSTERY{$name}.<ctx> = $ctx;
         %*MYSTERY{$name}.<line> ~= ',' if %*MYSTERY{$name}.<line>;
         %*MYSTERY{$name}.<line> ~= self.lineof($pos);
-    }
-    else {
-        self.deb("$name is known") if $*DEBUG +& DEBUG::symtab;
     }
     self;
 }
@@ -5554,7 +5690,7 @@ method explain_mystery() {
     my %unk_routines;
     my $m = '';
     for keys(%*MYSTERY) {
-        my $p = %*MYSTERY{$_}.<pad>;
+        my $p = %*MYSTERY{$_}.<lex>;
         if self.is_name($_, $p) {
             # types may not be post-declared
             %post_types{$_} = %*MYSTERY{$_};
@@ -5583,26 +5719,36 @@ method explain_mystery() {
         $m ~= "Undeclared name" ~ ('s' x (@tmp != 1)) ~ ":\n";
         for @tmp {
             $m ~= "\t'$_' used at line " ~ %unk_types{$_}.<line> ~ "\n";
+            $m ~= "\t  (in Perl 6 please use Mu as the most universal type)\n" if $_ eq 'Object';
         }
     }
     if %unk_routines {
         my @tmp = sort keys(%unk_routines);
         $m ~= "Undeclared routine" ~ ('s' x (@tmp != 1)) ~ ":\n";
+        my $obs = {
+            y => "tr",
+            qr => "rx",
+            local => "temp (or dynamic var)",
+            new => "method call syntax",
+            foreach => "for",
+        }
         for @tmp {
             $m ~= "\t'$_' used at line " ~ %unk_routines{$_}.<line> ~ "\n";
+            $m ~= "\t  (in Perl 6 please use " ~ $obs{$_} ~ " instead)\n" if $obs{$_};
         }
     }
     self.sorry($m) if $m;
+    self;
 }
 
 method load_setting ($setting) {
-    $ALL = self.load_pad($setting);
+    $ALL = self.load_lex($setting);
 
     $*CORE = $ALL<CORE>;
     $*CORE.<!id> //= ['CORE'];
 
     $*SETTING = $ALL<SETTING>;
-    $*CURPAD = $*SETTING;
+    $*CURLEX = $*SETTING;
 
     $*GLOBAL = $*CORE.<GLOBAL::> = Stash.new(
         '!file' => $*FILE, '!line' => 1,
@@ -5611,7 +5757,7 @@ method load_setting ($setting) {
     $*CURPKG = $*GLOBAL;
 }
 
-method is_known ($n, $curpad = $*CURPAD) {
+method is_known ($n, $curlex = $*CURLEX) {
     my $name = $n;
     self.deb("is_known $name") if $*DEBUG +& DEBUG::symtab;
     return True if $*QUASIMODO;
@@ -5637,9 +5783,9 @@ method is_known ($n, $curpad = $*CURPAD) {
             $curpkg = $curpkg.{$pkg};
             return False unless $curpkg;
             try {
-                my $outpadid = $curpkg.[0];
-                return False unless $outpadid;
-                $curpkg = $ALL.{$outpadid};
+                my $outlexid = $curpkg.[0];
+                return False unless $outlexid;
+                $curpkg = $ALL.{$outlexid};
                 return False unless $curpkg;
             };
             self.deb("Found $pkg okay, now in $curpkg ") if $*DEBUG +& DEBUG::symtab;
@@ -5651,46 +5797,48 @@ method is_known ($n, $curpad = $*CURPAD) {
     return True if $name eq '';
     if $curpkg.{$name} {
         self.deb("Found") if $*DEBUG +& DEBUG::symtab;
+        $curpkg.{$name}<used>++;
         return True;
     }
     # leading components take us non-lexical?  assume we can't know
     return False if $curpkg !=== $*CURPKG and $curpkg<!id>[0] ~~ /^GLOBAL($|\:\:)/;
 
     my $varbind = { truename => '???' };
-    return True if $n !~~ /\:\:/ and self.pad_can_find_name($curpad,$name,$varbind);
+    return True if $n !~~ /\:\:/ and self.lex_can_find_name($curlex,$name,$varbind);
     self.deb("Not Found") if $*DEBUG +& DEBUG::symtab;
 
     return False;
 }
 
-method pad_can_find_name ($pad, $name, $varbind) {
-    self.deb("Looking in ", $pad.id) if $*DEBUG +& DEBUG::symtab;
-    if $pad.{$name} {
-        self.deb("Found $name in ", $pad.id) if $*DEBUG +& DEBUG::symtab;
+method lex_can_find_name ($lex, $name, $varbind) {
+    self.deb("Looking in ", $lex.id) if $*DEBUG +& DEBUG::symtab;
+    if $lex.{$name} {
+        self.deb("Found $name in ", $lex.id) if $*DEBUG +& DEBUG::symtab;
+        $lex.{$name}<used>++;
         return True;
     }
 
-    my $outpadid = $pad.<OUTER::>[0];
-    return False unless $outpadid;
-    my $outpad = $ALL.{$outpadid};
+    my $outlexid = $lex.<OUTER::>[0];
+    return False unless $outlexid;
+    my $outlex = $ALL.{$outlexid};
 
-    if self.pad_can_find_name($outpad,$name,$varbind) {
+    if self.lex_can_find_name($outlex,$name,$varbind) {
         # fake up an alias to outer symbol to catch reclaration
-        my $outname = $outpad.{$name}<name>;
-        my $outfile = $outpad.{$name}<file>;
-        my $outline = $outpad.{$name}<line>;
+        my $outname = $outlex.{$name}<name>;
+        my $outfile = $outlex.{$name}<file>;
+        my $outline = $outlex.{$name}<line>;
         $outname = '<' ~ $outname ~ '>' unless $outname ~~ /\:\:\</;
         $outname = "OUTER::" ~ $outname;
-        $pad.{$name} = NAME.new(
-            xpad => $pad.idref,
-            opad => $pad.idref,
+        $lex.{$name} = NAME.new(
+            olex => $lex.idref,
             name => $outname,
             file => $outfile, line => $outline,
             rebind => self.line,
             varbind => $varbind,
             mult => 'only',
+            scope => $lex.{$name}<scope>,
         );
-        # the innermost pad sets this last to get correct # of OUTER::s
+        # the innermost lex sets this last to get correct # of OUTER::s
         $varbind.<truename> = $outname;
         return True;
     }
@@ -5699,6 +5847,7 @@ method pad_can_find_name ($pad, $name, $varbind) {
 }
 
 method add_routine ($name) {
+    @*MEMOS[self.pos]<wasname> = $name if self.is_name($name);
     my $vname = '&' ~ $name;
     self.add_name($vname);
     self;
@@ -5718,7 +5867,7 @@ method add_variable ($name) {
 
 method add_constant($name,$value) {
     my $*IN_DECL = 'constant';
-    self.deb("add_constant $name = $value in", $*CURPAD.id) if $*DEBUG +& DEBUG::symtab;
+    self.deb("add_constant $name = $value in", $*CURLEX.id) if $*DEBUG +& DEBUG::symtab;
     my $*DECLARAND;
     self.add_my_name($name);
     $*DECLARAND<value> = $value;
@@ -5726,64 +5875,104 @@ method add_constant($name,$value) {
 }
 
 method add_placeholder($name) {
+    my $decl = $*CURLEX.<!IN_DECL> // '';
+    $decl = ' ' ~ $decl if $decl;
     my $*IN_DECL = 'variable';
+
     if $*SIGNUM {
-        return self.sorry("Placeholder variable $name not allowed in signature");
+        return self.sorry("Placeholder variable $name is not allowed in the$decl signature");
     }
-    elsif my $siggy = $*CURPAD.<$?SIGNATURE> {
+    elsif my $siggy = $*CURLEX.<$?SIGNATURE> {
         return self.sorry("Placeholder variable $name cannot override existing signature $siggy");
     }
-    if not $*CURPAD.<!NEEDSIG> {
-        return self.sorry("Placeholder variable $name cannot be used in this kind of block");
+    if not $*CURLEX.<!NEEDSIG> {
+        if $*CURLEX === $*UNIT {
+            return self.sorry("Placeholder variable $name may not be used outside of a block");
+        }
+        return self.sorry("Placeholder variable $name may not be used here because the surrounding$decl block takes no signature");
     }
-    self.add_my_name($name);
-    $name ~~ s/\^//;
-    $name = ':' ~ $name if $name ~~ s/\://;
-    $*CURPAD.{'%?PLACEHOLDERS'}{$name}++;
+    if $name ~~ /\:\:/ {
+        return self.sorry("Placeholder variable $name may not be package qualified");
+    }
+
+    my $varname = $name;
+    my $twigil;
+    my $signame;
+    $twigil = '^' if $varname ~~ s/\^//;
+    $signame = $twigil = ':' if $varname ~~ s/\://;
+    $signame ~= $varname;
+    return self if $*CURLEX.{'%?PLACEHOLDERS'}{$signame}++;
+
+    if $*CURLEX{$varname} {
+        return self.sorry("$varname has already been used as a non-placeholder in the surrounding$decl block,\n  so you will confuse the reader if you suddenly declare $name here");
+    }
+ 
+    self.add_my_name($varname);
+    $*CURLEX{$varname}<used> = 1;
     self;
 }
 
 method check_variable ($variable) {
     my $name = $variable.Str;
+    my $here = self.cursor($variable.from);
     self.deb("check_variable $name") if $*DEBUG +& DEBUG::symtab;
     my ($sigil, $twigil, $first) = $name ~~ /(\$|\@|\%|\&)(\W*)(.?)/;
+    ($first,$twigil) = ($twigil, '') if $first eq '';
     given $twigil {
         when '' {
             my $ok = 0;
             $ok ||= $*IN_DECL;
-            $ok ||= $sigil eq '&';
             $ok ||= $first lt 'A';
+            $ok ||= $first eq '¢';
             $ok ||= self.is_known($name);
             $ok ||= $name ~~ /.\:\:/ && $name !~~ /MY|UNIT|OUTER|SETTING|CORE/;
             if not $ok {
                 my $id = $name;
                 $id ~~ s/^\W\W?//;
-                if $name eq '@_' or $name eq '%_' {
-                    $variable.add_placeholder($name);
+                if $sigil eq '&' {
+                    $here.add_mystery($variable.<sublongname>, self.pos, 'var')
+                }
+                elsif $name eq '@_' or $name eq '%_' {
+                    $here.add_placeholder($name);
                 }
                 else {  # guaranteed fail now
                     if my $scope = @*MEMOS[$variable.from]<declend> {
-                        return $variable.sorry("Variable $name is not predeclared (declarators are tighter than comma, so maybe your '$scope' signature needs parens?)");
+                        return $here.sorry("Variable $name is not predeclared (declarators are tighter than comma, so maybe your '$scope' signature needs parens?)");
                     }
                     elsif $id !~~ /\:\:/ {
                         if self.is_known('@' ~ $id) {
-                            return $variable.sorry("Variable $name is not predeclared (did you mean \@$id?)");
+                            return $here.sorry("Variable $name is not predeclared (did you mean \@$id?)");
                         }
                         elsif self.is_known('%' ~ $id) {
-                            return $variable.sorry("Variable $name is not predeclared (did you mean \%$id?)");
+                            return $here.sorry("Variable $name is not predeclared (did you mean \%$id?)");
                         }
                     }
-                    return $variable.sorry("Variable $name is not predeclared");
+                    return $here.sorry("Variable $name is not predeclared");
                 }
+            }
+            elsif $*CURLEX{$name} {
+                $*CURLEX{$name}<used>++;
+            }
+        }
+        when '!' {
+            if not $*HAS_SELF { # XXX to be replaced by MOP queries
+                $here.sorry("Variable $name used where no 'self' is available");
+            }
+        }
+        when '.' {
+            given $*HAS_SELF { # XXX to be replaced by MOP queries
+                when 'complete' {}
+                when 'partial' { $here.sorry("Virtual call $name may not be used on partially constructed object"); }
+                default { $here.sorry("Variable $name used where no 'self' is available"); }
             }
         }
         when '^' {
             my $*MULTINESS = 'multi';
-            $variable.add_placeholder($name);
+            $here.add_placeholder($name);
         }
         when ':' {
             my $*MULTINESS = 'multi';
-            $variable.add_placeholder($name);
+            $here.add_placeholder($name);
         }
         when '~' {
             return %*LANG.{substr($name,2)};
@@ -5791,11 +5980,11 @@ method check_variable ($variable) {
         when '?' {
             if $name ~~ /\:\:/ {
                 my ($first) = self.canonicalize_name($name);
-                $variable.worry("Unrecognized variable: $name") unless $first ~~ /^(CALLER|CONTEXT|OUTER|MY|SETTING|CORE)$/;
+                $here.worry("Unrecognized variable: $name") unless $first ~~ /^(CALLER|CONTEXT|OUTER|MY|SETTING|CORE)\:\:$/;
             }
             else {
                 # search upward through languages to STD
-                my $v = $variable.lookup_compiler_var($name);
+                my $v = $here.lookup_compiler_var($name);
                 $variable.<value> = $v if $v;
             }
         }
@@ -5806,7 +5995,7 @@ method check_variable ($variable) {
 method lookup_compiler_var($name, $default = Nil) {
 
     # see if they did "constant $?FOO = something" earlier
-    my $lex = $*CURPAD.{$name};
+    my $lex = $*CURLEX.{$name};
     if defined $lex {
         if $lex.<thunk>:exists {
             return $lex.<thunk>.();
@@ -5823,7 +6012,7 @@ method lookup_compiler_var($name, $default = Nil) {
 
         when '$?LANG'     { return item %*LANG; }
 
-        when '$?LEXPAD'   { return $*CURPAD; }
+        when '$?LEXINFO'   { return $*CURLEX; }
 
         when '$?PACKAGE'  { return $*CURPKG; }
         when '$?MODULE'   { return $*CURPKG; } #  XXX should scan
@@ -5872,15 +6061,15 @@ method panic (Str $s) {
 
     $here = self.cursor($*HIGHWATER) if $highvalid;
 
-    my $first = $here.lineof($*LAST_NIBBLE.<_from>);
-    my $last = $here.lineof($*LAST_NIBBLE.<_pos>);
+    my $first = $here.lineof($*LAST_NIBBLE.from);
+    my $last = $here.lineof($*LAST_NIBBLE.pos);
     if $first != $last {
         if $here.lineof($here.pos) == $last {
             $m ~= "(Possible runaway string from line $first)\n";
         }
         else {
-            $first = $here.lineof($*LAST_NIBBLE_MULTILINE.<_from>);
-            $last = $here.lineof($*LAST_NIBBLE_MULTILINE.<_pos>);
+            $first = $here.lineof($*LAST_NIBBLE_MULTILINE.from);
+            $last = $here.lineof($*LAST_NIBBLE_MULTILINE.pos);
             # the bigger the string (in lines), the further back we suspect it
             if $here.lineof($here.pos) - $last < $last - $first  {
                 $m ~= "(Possible runaway string from line $first to line $last)\n";
@@ -5889,6 +6078,10 @@ method panic (Str $s) {
     }
 
     $m ~= $s;
+
+    if substr(self.orig,$here.pos,1) ~~ /\)|\]|\}|\»/ {
+        $m ~~ s|Confused|Unexpected closing bracket| and $highvalid = False;
+    }
 
     if $highvalid {
         $m ~= $*HIGHMESS if $*HIGHMESS;
@@ -5912,14 +6105,17 @@ method panic (Str $s) {
             $m ~= "    expecting @keys\n" unless @keys[0] eq 'whitespace';
         }
     }
-    if $m ~~ /infix|nofun/ and not $m ~~ /regex/ {
-        my @t = $here.suppose( sub { $here.termish } );
+    if $m ~~ /infix|nofun/ and not $m ~~ /regex/ and not $m ~~ /infix_circumfix/ {
+        my @t = $here.suppose( sub { $here.term } );
         if @t {
             my $endpos = $here.pos;
             my $startpos = @*MEMOS[$endpos]<ws> // $endpos;
 
             if self.lineof($startpos) != self.lineof($endpos) {
                 $m ~~ s|Confused|Two terms in a row (previous line missing its semicolon?)|;
+            }
+            elsif @*MEMOS[$here.pos]<listop> {
+                $m ~~ s|Confused|Two terms in a row (listop with args requires whitespace or parens)|;
             }
             elsif @*MEMOS[$here.pos - 1]<baremeth> {
                 $m ~~ s|Confused|Two terms in a row (method call requires colon or parens to take arguments)|;
@@ -5931,6 +6127,21 @@ method panic (Str $s) {
                 $m ~~ s|Confused|Two terms in a row|;
             }
         }
+        elsif my $type = @*MEMOS[$here.pos - 1]<nodecl> {
+            my @t = $here.suppose( sub { $here.variable } );
+            if @t {
+                my $variable = @t[0].Str;
+                $m ~~ s|Confused|Bare type $type cannot declare $variable without a preceding scope declarator such as 'my'|;
+            }
+        }
+    }
+    elsif my $type = @*MEMOS[$here.pos - 1]<wasname> {
+        my @t = $here.suppose( sub { $here.identifier } );
+        my $name = @t[0].Str;
+        my $s = $*SCOPE ?? "'$*SCOPE'" !! '(missing) scope declarator';
+        my $d = $*IN_DECL;
+        $d = "$*MULTINESS $d" if $*MULTINESS and $*MULTINESS ne $d;
+        $m ~~ s|Malformed block|Return type $type is not allowed between '$d' and '$name'; please put it:\n  after the $s but before the '$d',\n  within the signature following the '-->' marker, or\n  as the argument of a 'returns' trait after the signature.|;
     }
 
     if @*WORRIES {
@@ -5950,8 +6161,22 @@ method panic (Str $s) {
     die "Parse failed\n";
 }
 
+regex is_ok {
+    \N*? '#OK' \h*? $<okif>=[\N*?] \h*? $$
+}
+
 method worry (Str $s) {
     my $m = $s ~ self.locmess;
+
+    # allow compile-time warning suppression with #OK some string
+    my ($okmaybe) = self.suppose( sub {
+        self.is_ok;
+    });
+    if $okmaybe {
+        my $okif = $okmaybe<okif>.Str;
+        return self if $okif eq '' or $s ~~ /$okif/;
+    }
+
     push @*WORRIES, $m unless %*WORRIES{$s}++;
     self;
 }
@@ -5973,54 +6198,6 @@ method sorry (Str $s) {
     self;
 }
 
-method locmess () {
-    my $pos = self.pos;
-    my $line = self.lineof($pos);
-
-    # past final newline?
-    if $pos >= @*MEMOS - 1 {
-        $pos = $pos - 1;
-        $line = $line ~ " (EOF)";
-    }
-
-    my $pre = substr($*ORIG, 0, $pos);
-    $pre = substr($pre, -40, 40);
-    1 while $pre ~~ s!.*\n!!;
-    $pre = '<BOL>' if $pre eq '';
-    my $post = substr($*ORIG, $pos, 40);
-    1 while $post ~~ s!(\n.*)!!;
-    $post = '<EOL>' if $post eq '';
-    " at " ~ $*FILE<name> ~ " line $line:\n------> " ~ $Cursor::GREEN ~ $pre ~ $Cursor::YELLOW ~ $*PERL6HERE ~ $Cursor::RED ~ 
-        "$post$Cursor::CLEAR";
-}
-
-method line {
-    self.lineof(self.pos);
-}
-
-method lineof ($p) {
-    return 1 unless defined $p;
-    my $line = @*MEMOS[$p]<L>;
-    return $line if $line;
-    $line = 0;
-    my $pos = 0;
-    my @text = split(/^/,$*ORIG);   # XXX p5ism, should be ^^
-    for @text {
-        $line++;
-        @*MEMOS[$pos++]<L> = $line
-            for 1 .. chars($_);
-    }
-    @*MEMOS[$pos++]<L> = $line;
-    return @*MEMOS[$p]<L> // 0;
-}
-
-method SETGOAL { }
-method FAILGOAL (Str $stop, Str $name, $startpos) {
-    my $s = "'$stop'";
-    $s = '"\'"' if $s eq "'''";
-    self.panic("Unable to parse $name" ~ $startpos.locmess ~ "\nCouldn't find final $s; gave up");
-}
-
 # "when" arg assumes more things will become obsolete after Perl 6 comes out...
 
 method obs (Str $old, Str $new, Str $when = ' in Perl 6') {
@@ -6039,7 +6216,12 @@ method worryobs (Str $old, Str $new, Str $when = ' in Perl 6') {
     self;
 }
 
-method badinfix (Str $bad = $*sym) {
+method dupprefix (Str $bad) {
+    my $c = substr($bad,0,1);
+    self.panic("Expecting a term, but found either infix $bad or redundant prefix $c\n  (to suppress this message, please use space between $c $c)");
+}
+
+method badinfix (Str $bad) {
     self.panic("Preceding context expects a term, but found infix $bad instead");
 }
 
@@ -6047,14 +6229,14 @@ method badinfix (Str $bad = $*sym) {
 # to reach ('say »+«' works), but it's okay as a last-ditch default anyway.
 token term:sym<miscbad> {
     {} <!{ $*QSIGIL }>
-    {{
+    {
         my ($bad) = $¢.suppose( sub {
             $¢.infixish;
         });
         $*HIGHWATER = -1;
         $*HIGHMESS = '';
         self.badinfix($bad.Str) if $bad;
-    }}
+    }
     <!>
 }
 
