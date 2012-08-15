@@ -1,4 +1,7 @@
 package Benchmark::Perl::Formance::Plugin::Shootout::nbody;
+BEGIN {
+  $Benchmark::Perl::Formance::Plugin::Shootout::nbody::AUTHORITY = 'cpan:SCHWIGON';
+}
 
 # COMMAND LINE:
 # /usr/bin/perl nbody.perl 50000000
@@ -149,7 +152,15 @@ sub main
 
 1;
 
-__END__
+
+
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Benchmark::Perl::Formance::Plugin::Shootout::nbody
 
 =head1 NAME
 
@@ -159,3 +170,20 @@ Benchmark::Perl::Formance::Plugin::Shootout::nbody - Language shootout plugin: n
 
 This plugin does some runs the "nbody" benchmark from the Language
 Shootout.
+
+=head1 AUTHOR
+
+Steffen Schwigon <ss5@renormalist.net>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2012 by Steffen Schwigon.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+=cut
+
+
+__END__
+

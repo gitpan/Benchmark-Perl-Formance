@@ -1,4 +1,6 @@
 #! /usr/bin/perl
+# PODNAME: benchmark-perlformance
+# ABSTRACT: Frontend for Benchmark::Perl::Formance
 
 use Benchmark::Perl::Formance;
 
@@ -7,20 +9,16 @@ my $pf = Benchmark::Perl::Formance->new;
 my $results = $pf->run;
 $pf->print_results($results);
 
+
+
+__END__
 =pod
+
+=encoding utf-8
 
 =head1 NAME
 
 benchmark-perlformance - Frontend for Benchmark::Perl::Formance
-
-=head1 ABOUT
-
-This is the frontend commandline tool for starting the performance
-benchmark runs.
-
-After running it prints out the results which you can take to compare
-them to runs with other Perl versions, other architectures, different
-compile time configuration or on different machines.
 
 =head1 SYNOPSIS
 
@@ -36,7 +34,6 @@ If run directly it uses the perl in your PATH:
 
   $ /path/to/benchmark-perlformance
 
-
 To use another Perl start it via
 
   $ /other/path/to/bin/perl /path/to/benchmark-perlformance
@@ -49,6 +46,15 @@ C<-D> option to define key/value pairs:
 Plugins usually follow the convention that the options are prefixed
 with the plugin name, like in the example it means the config value
 C<n> used by the plugin C<Shootout::fasta>.
+
+=head1 ABOUT
+
+This is the frontend commandline tool for starting the performance
+benchmark runs.
+
+After running it prints out the results which you can take to compare
+them to runs with other Perl versions, other architectures, different
+compile time configuration or on different machines.
 
 =head1 OPTIONS
 
@@ -261,12 +267,22 @@ Thread handling.
 Runs some Perl benchmarks from the Language Shootout on
 alioth.debian.org.
 
-=item L<Benchmark::Perl::Formance::Plugin::MooseTS|Benchmark::Perl::Formance::Plugin::MooseTS>
+=item L<Benchmark::Perl::Formance::Plugin::P6STD|Benchmark::Perl::Formance::Plugin::P6STD>
 
-Runs the Moose testsuite.
+Runs tools from Perl6 STD world.
 
 =back
 
+=head1 AUTHOR
+
+Steffen Schwigon <ss5@renormalist.net>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2012 by Steffen Schwigon.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
 
 =cut
 

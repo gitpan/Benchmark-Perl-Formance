@@ -1,4 +1,12 @@
 package Benchmark::Perl::Formance;
+# git description: 0.09-94-gbf70f0e
+
+BEGIN {
+  $Benchmark::Perl::Formance::AUTHORITY = 'cpan:SCHWIGON';
+}
+{
+  $Benchmark::Perl::Formance::VERSION = '0.28';
+}
 
 use 5.008;
 
@@ -18,8 +26,6 @@ use File::Find;
 use Storable "fd_retrieve", "store_fd";
 use Sys::Hostname;
 
-our $VERSION = '0.27';
-
 # comma separated list of default plugins
 my $DEFAULT_PLUGINS = join ",", qw(DPath
                                    Fib
@@ -35,8 +41,6 @@ my $DEFAULT_PLUGINS = join ",", qw(DPath
                                    Shootout::spectralnorm
                                  );
 
-# non-working:
-#   MooseTS
 my $ALL_PLUGINS = join ",", qw(DPath
                                Fib
                                FibMoose
@@ -140,14 +144,14 @@ sub print_version
 
         if ($self->{options}{verbose})
         {
-                print "Benchmark::Perl::Formance version $VERSION\n";
+                print "Benchmark::Perl::Formance version $Benchmark::Perl::Formance::VERSION\n";
                 print "Plugins:\n";
                 my %plugins = load_all_plugins;
                 print "  (v$plugins{$_}) $_\n" foreach sort keys %plugins;
         }
         else
         {
-                print $VERSION, "\n";
+                print $Benchmark::Perl::Formance::VERSION, "\n";
         }
 }
 
@@ -561,7 +565,15 @@ sub print_results
 
 1;
 
-__END__
+
+
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Benchmark::Perl::Formance
 
 =head1 NAME
 
@@ -573,7 +585,6 @@ This benchmark suite tries to run some stressful programs and outputs
 values that you can compare against other runs of this suite,
 e.g. with other versions of Perl, modified compile parameter, or
 another set of dependent libraries.
-
 
 =head1 AUTHOR
 
@@ -610,7 +621,6 @@ knowledge about "real" benchmark science.
 
 Anyway, feel free to implement "real" benchmark ideas and send me
 patches.
-
 
 =head2 Bug reports
 
@@ -656,3 +666,20 @@ Copyright 2008-2010 Steffen Schwigon.
 
 This program is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
+
+=head1 AUTHOR
+
+Steffen Schwigon <ss5@renormalist.net>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2012 by Steffen Schwigon.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+=cut
+
+
+__END__
+

@@ -1,4 +1,7 @@
 package Benchmark::Perl::Formance::Plugin::Shootout::regexdna;
+BEGIN {
+  $Benchmark::Perl::Formance::Plugin::Shootout::regexdna::AUTHORITY = 'cpan:SCHWIGON';
+}
 
 # COMMAND LINE:
 # /usr/bin/perl regexdna.perl-2.perl 0 < regexdna-input5000000.txt
@@ -23,15 +26,14 @@ our $VERSION = "0.002";
 #                                                           #
 #############################################################
 
-use Benchmark::Perl::Formance::Cargo;
-use File::ShareDir qw(module_dir);
+use File::ShareDir qw(dist_dir);
 use Benchmark ':hireswallclock';
 
 sub run
 {
         my ($infile) = @_;
 
-        my $srcdir = module_dir('Benchmark::Perl::Formance::Cargo')."/Shootout";
+        my $srcdir = dist_dir('Benchmark-Perl-Formance-Cargo')."/Shootout";
         my $srcfile = "$srcdir/$infile";
         open my $INFILE, "<", $srcfile or die "Cannot read $srcfile";
 
@@ -112,7 +114,15 @@ sub main
 
 1;
 
-__END__
+
+
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Benchmark::Perl::Formance::Plugin::Shootout::regexdna
 
 =head1 NAME
 
@@ -122,3 +132,20 @@ Benchmark::Perl::Formance::Plugin::Shootout::regexdna - Language shootout plugin
 
 This plugin does some runs the "regexdna" benchmark from the Language
 Shootout.
+
+=head1 AUTHOR
+
+Steffen Schwigon <ss5@renormalist.net>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2012 by Steffen Schwigon.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+=cut
+
+
+__END__
+

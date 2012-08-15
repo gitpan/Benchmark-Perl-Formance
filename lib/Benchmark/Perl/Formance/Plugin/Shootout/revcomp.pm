@@ -1,4 +1,7 @@
 package Benchmark::Perl::Formance::Plugin::Shootout::revcomp;
+BEGIN {
+  $Benchmark::Perl::Formance::Plugin::Shootout::revcomp::AUTHORITY = 'cpan:SCHWIGON';
+}
 
 # COMMAND LINE:
 # /usr/bin/perl revcomp.perl-4.perl 0 < revcomp-input25000000.txt
@@ -19,8 +22,7 @@ our $VERSION = "0.002";
 #                                                           #
 #############################################################
 
-use Benchmark::Perl::Formance::Cargo;
-use File::ShareDir qw(module_dir);
+use File::ShareDir qw(dist_dir);
 use Benchmark ':hireswallclock';
 
 our $PRINT = 0;
@@ -39,7 +41,7 @@ sub run
 
         my $data;
 
-        my $srcdir = module_dir('Benchmark::Perl::Formance::Cargo')."/Shootout";
+        my $srcdir = dist_dir('Benchmark-Perl-Formance-Cargo')."/Shootout";
         my $srcfile = "$srcdir/$infile";
         open my $INFILE, "<", $srcfile or die "Cannot read $srcfile";
 
@@ -78,7 +80,15 @@ sub main
 
 1;
 
-__END__
+
+
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Benchmark::Perl::Formance::Plugin::Shootout::revcomp
 
 =head1 NAME
 
@@ -97,4 +107,19 @@ it:
    $ perl-formance --plugins=Shootout::revcomp \
                    -DShootout_revcomp_print=1
 
+=head1 AUTHOR
+
+Steffen Schwigon <ss5@renormalist.net>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2012 by Steffen Schwigon.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
 =cut
+
+
+__END__
+

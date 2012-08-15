@@ -1,4 +1,7 @@
 package Benchmark::Perl::Formance::Plugin::RegexpCommonTS;
+BEGIN {
+  $Benchmark::Perl::Formance::Plugin::RegexpCommonTS::AUTHORITY = 'cpan:SCHWIGON';
+}
 
 use strict;
 use warnings;
@@ -13,9 +16,8 @@ our $VERSION = "0.002";
 
 use File::Temp qw(tempfile tempdir);
 use File::Copy::Recursive qw(dircopy);
-use File::ShareDir qw(module_dir);
+use File::ShareDir qw(dist_dir);
 use Time::HiRes qw(gettimeofday);
-use Benchmark::Perl::Formance::Cargo;
 
 our $count;
 our $recurse;
@@ -26,7 +28,7 @@ sub prepare {
         my ($options) = @_;
 
         my $dstdir = tempdir( CLEANUP => 1 );
-        my $srcdir = module_dir('Benchmark::Perl::Formance::Cargo')."/RegexpCommonTS";
+        my $srcdir = dist_dir('Benchmark-Perl-Formance-Cargo')."/RegexpCommonTS";
 
         print STDERR "# Prepare cargo RegexpCommon testsuite in $dstdir ...\n" if $options->{verbose} >= 3;
 
@@ -70,7 +72,16 @@ sub main {
 
 1;
 
+
+
+__END__
 =pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Benchmark::Perl::Formance::Plugin::RegexpCommonTS
 
 =head1 NAME
 
@@ -79,6 +90,17 @@ Benchmark::Perl::Formance::Plugin::RegexpCommonTS - RegexpCommon test suite as b
 =head1 ABOUT
 
 This plugin runs a part of the RegexpCommon test suite.
+
+=head1 AUTHOR
+
+Steffen Schwigon <ss5@renormalist.net>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2012 by Steffen Schwigon.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
 
 =cut
 

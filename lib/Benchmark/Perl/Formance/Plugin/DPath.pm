@@ -1,9 +1,12 @@
 package Benchmark::Perl::Formance::Plugin::DPath;
+BEGIN {
+  $Benchmark::Perl::Formance::Plugin::DPath::AUTHORITY = 'cpan:SCHWIGON';
+}
 
 use strict;
 use warnings;
 
-our $VERSION = "0.002";
+our $VERSION = "0.003";
 
 #############################################################
 #                                                           #
@@ -470,6 +473,9 @@ sub run_dpath
 sub main {
         my ($options) = @_;
 
+        # we are interested in raw Perl speed
+        local $Data::DPath::USE_SAFE = 0;
+
         $goal  = $options->{fastmode} ? 15 : 1000;
         $count = 5;
 
@@ -479,10 +485,33 @@ sub main {
 }
 1;
 
-__END__
+
+
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Benchmark::Perl::Formance::Plugin::DPath
 
 =head1 NAME
 
 Benchmark::Perl::Formance::Plugin::DPath - Use DPath to stress lookup, traversing and copying data structures
 
+=head1 AUTHOR
+
+Steffen Schwigon <ss5@renormalist.net>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2012 by Steffen Schwigon.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
 =cut
+
+
+__END__
+

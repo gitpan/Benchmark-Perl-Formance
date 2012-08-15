@@ -1,4 +1,7 @@
 package Benchmark::Perl::Formance::Plugin::Shootout::fasta;
+BEGIN {
+  $Benchmark::Perl::Formance::Plugin::Shootout::fasta::AUTHORITY = 'cpan:SCHWIGON';
+}
 
 # COMMAND LINE:
 # /usr/bin/perl fasta.perl-4.perl 25000000
@@ -166,7 +169,15 @@ sub main
 
 1;
 
-__END__
+
+
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Benchmark::Perl::Formance::Plugin::Shootout::fasta
 
 =head1 NAME
 
@@ -193,4 +204,19 @@ means print out the result and C<_count> is the repetition
 counter is usually 5 but should be 1 when generating
 the output for other plugins.
 
+=head1 AUTHOR
+
+Steffen Schwigon <ss5@renormalist.net>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2012 by Steffen Schwigon.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
 =cut
+
+
+__END__
+

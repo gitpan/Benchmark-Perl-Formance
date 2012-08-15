@@ -1,81 +1,91 @@
-use inc::Module::Install;
 
-# Define metadata
-name           'Benchmark-Perl-Formance';
-all_from       'lib/Benchmark/Perl/Formance.pm';
+use strict;
+use warnings;
 
-# general dependencies
-requires 'Benchmark';
-requires 'Time::HiRes';
-requires 'Devel::Size';
-requires 'File::ShareDir';
-requires 'Data::YAML::Writer';
-requires 'Data::Structure::Util';
-requires 'File::Copy::Recursive';
-requires 'Devel::Platform::Info';
-requires 'Benchmark::Perl::Formance::Cargo' => '0.02';
-requires 'Data::DPath' => '0.40';
+use 5.010;
 
-test_requires 'Data::YAML::Reader';
+use ExtUtils::MakeMaker 6.30;
 
-recommends 'forks';
 
-# SpamAssassin
-recommends 'DB_File';
-recommends 'Net::IP';               # really
-recommends 'Net::DNS';              # really
-recommends 'NetAddr::IP';           # really
-recommends 'HTML::Parser';          # really
-recommends 'Mail::SpamAssassin';
 
-# OO
-recommends 'MooseX::Declare';
-recommends 'Moose' => '0.98';
-recommends 'Mouse';
+my %WriteMakefileArgs = (
+  "ABSTRACT" => "PerlFormance - Benchmark Suite",
+  "AUTHOR" => "Steffen Schwigon <ss5\@renormalist.net>",
+  "BUILD_REQUIRES" => {
+    "Data::YAML::Reader" => 0,
+    "Test::More" => 0
+  },
+  "CONFIGURE_REQUIRES" => {
+    "ExtUtils::MakeMaker" => "6.30"
+  },
+  "DISTNAME" => "Benchmark-Perl-Formance",
+  "EXE_FILES" => [
+    "bin/benchmark-perlformance"
+  ],
+  "LICENSE" => "perl",
+  "NAME" => "Benchmark::Perl::Formance",
+  "PREREQ_PM" => {
+    "Benchmark" => 0,
+    "Benchmark::Perl::Formance::Cargo" => "0.05",
+    "Clone" => 0,
+    "Config" => 0,
+    "Cwd" => 0,
+    "Data::DPath" => "0.47",
+    "Data::Dumper" => 0,
+    "Data::Structure::Util" => 0,
+    "Data::YAML::Writer" => 0,
+    "Devel::Platform::Info" => 0,
+    "Devel::Size" => "0.78",
+    "Exporter" => 0,
+    "File::Copy::Recursive" => 0,
+    "File::Find" => 0,
+    "File::ShareDir" => 0,
+    "File::Temp" => 0,
+    "Getopt::Long" => 0,
+    "IO::Handle" => 0,
+    "IO::Select" => 0,
+    "List::Util" => 0,
+    "Math::GMP" => 0,
+    "Math::MatrixReal" => 0,
+    "Moose" => 0,
+    "MooseX::Declare" => 0,
+    "Mouse" => 0,
+    "Storable" => 0,
+    "Sys::Hostname" => 0,
+    "Test::More" => "0.90",
+    "Time::HiRes" => 0,
+    "constant" => 0,
+    "integer" => 0,
+    "strict" => 0,
+    "threads" => 0,
+    "threads::shared" => 0,
+    "vars" => 0,
+    "warnings" => 0
+  },
+  "VERSION" => "0.28",
+  "test" => {
+    "TESTS" => "t/*.t"
+  }
+);
 
-# RxCmp
-recommends 'POSIX::Regex';
-recommends 're::engine::Lua';
-recommends 're::engine::LPEG';
-recommends 're::engine::Plan9';
-recommends 're::engine::Oniguruma';
-recommends 're::engine::RE2';
 
-# Shootout
-recommends 'Math::GMP';
+unless ( eval { ExtUtils::MakeMaker->VERSION(6.56) } ) {
+  my $br = delete $WriteMakefileArgs{BUILD_REQUIRES};
+  my $pp = $WriteMakefileArgs{PREREQ_PM};
+  for my $mod ( keys %$br ) {
+    if ( exists $pp->{$mod} ) {
+      $pp->{$mod} = $br->{$mod} if $br->{$mod} > $pp->{$mod};
+    }
+    else {
+      $pp->{$mod} = $br->{$mod};
+    }
+  }
+}
 
-# MooseTS
-#recommends 'Test::Aggregate::Nested';
-recommends 'DateTime::Calendar::Mayan';
-recommends 'Regexp::Common';
-recommends 'Locale::US';
-recommends 'HTTP::Headers';
-recommends 'Params::Coerce';
-recommends 'URI';
-recommends 'Test::Output';
-recommends 'Module::Refresh';
-recommends 'DBM::Deep';
-recommends 'Declare::Constraints::Simple';
+delete $WriteMakefileArgs{CONFIGURE_REQUIRES}
+  unless eval { ExtUtils::MakeMaker->VERSION(6.52) };
 
-# Primes
-recommends 'Crypt::Primes';
-recommends 'Math::Primality';
+WriteMakefile(%WriteMakefileArgs);
 
-# DPath
-recommends 'Data::DPath';
-recommends 'Clone';
 
-# P6STD
-recommends 'Text::Balanced';
-recommends 'YAML::XS';
-recommends 'Encode';
 
-# PerlCritic
-recommends 'Perl::Critic';
-
-install_script('script/benchmark-perlformance');
-
-repository 'git://github.com/renormalist/Benchmark-Perl-Formance.git';
-bugtracker 'http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Benchmark-Perl-Formance';
-
-WriteAll;

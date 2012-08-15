@@ -1,4 +1,7 @@
 package Benchmark::Perl::Formance::Plugin::Shootout;
+BEGIN {
+  $Benchmark::Perl::Formance::Plugin::Shootout::AUTHORITY = 'cpan:SCHWIGON';
+}
 
 use strict;
 use warnings;
@@ -59,17 +62,25 @@ sub main
 1; # End of Benchmark::Perl::Formance::Plugin::Shootout
 
 
-__END__
+
+
+=pod
+
+=encoding utf-8
 
 =head1 NAME
 
-Benchmark::Perl::Formance::Plugin::Shootout - Benchmark::Perl::Formance plugin covering Shootout code
+Benchmark::Perl::Formance::Plugin::Shootout
 
 =head1 SYNOPSIS
 
 Use it as Benchmark::Perl::Formance plugin:
 
   $ perl-formance --plugins=Shootout
+
+=head1 NAME
+
+Benchmark::Perl::Formance::Plugin::Shootout - Benchmark::Perl::Formance plugin covering Shootout code
 
 =head1 BUGS
 
@@ -80,13 +91,11 @@ L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Perl-Formance-Plugin-LanguageSh
 I will be notified, and then you'll automatically be notified of
 progress on your bug as I make changes.
 
-
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
     perldoc Benchmark::Perl::Formance::Plugin::LanguageShootout
-
 
 You can also look for information at:
 
@@ -109,7 +118,6 @@ L<http://cpanratings.perl.org/d/Perl-Formance-Plugin-LanguageShootout>
 L<http://search.cpan.org/dist/Perl-Formance-Plugin-LanguageShootout/>
 
 =back
-
 
 =head1 AUTHOR
 
@@ -160,3 +168,20 @@ written by their respective authors under the following license:
  THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+=head1 AUTHOR
+
+Steffen Schwigon <ss5@renormalist.net>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2012 by Steffen Schwigon.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+=cut
+
+
+__END__
+

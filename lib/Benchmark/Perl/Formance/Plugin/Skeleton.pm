@@ -1,4 +1,7 @@
 package Benchmark::Perl::Formance::Plugin::Skeleton;
+BEGIN {
+  $Benchmark::Perl::Formance::Plugin::Skeleton::AUTHORITY = 'cpan:SCHWIGON';
+}
 
 use strict;
 use warnings;
@@ -38,7 +41,16 @@ sub main {
 
 1;
 
+
+
+__END__
 =pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Benchmark::Perl::Formance::Plugin::Skeleton
 
 =head1 NAME
 
@@ -70,6 +82,17 @@ To use it call the frontend tool and provide your pluginname via
 If your module should become a default part of the
 Benchmark::Perl::Formance suite, then patch the C<$DEFAULT_PLUGINS> in
 lib/Benchmark/Perl/Formance.pm and/or email me.
+
+=head1 AUTHOR
+
+Steffen Schwigon <ss5@renormalist.net>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2012 by Steffen Schwigon.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
 
 =cut
 

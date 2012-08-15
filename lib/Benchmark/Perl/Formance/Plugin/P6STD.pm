@@ -1,4 +1,7 @@
 package Benchmark::Perl::Formance::Plugin::P6STD;
+BEGIN {
+  $Benchmark::Perl::Formance::Plugin::P6STD::AUTHORITY = 'cpan:SCHWIGON';
+}
 
 use strict;
 use warnings;
@@ -16,8 +19,8 @@ our $count;
 
 use Benchmark ':all', ':hireswallclock';
 use File::Temp qw(tempfile tempdir);
-use File::ShareDir qw(module_dir);
-use File::Copy::Recursive qw(dircopy);
+use File::ShareDir qw(dist_dir);
+use File::Copy::Recursive qw(dircopy fcopy);
 use Cwd;
 
 sub prepare {
@@ -26,33 +29,20 @@ sub prepare {
         my $dstdir = tempdir( CLEANUP => 1 );
         my $cmd;
 
-        my $srcdir = module_dir('Benchmark::Perl::Formance::Plugin::P6STD');
-        print STDERR "# Prepare files in $dstdir ...\n" if $options->{verbose} >= 3;
+        my $srcdir = dist_dir('Benchmark-Perl-Formance-Cargo')."/P6STD";
+        print STDERR "# Make viv in $dstdir ...\n" if $options->{verbose} >= 3;
         dircopy($srcdir, $dstdir);
 
-        $cmd = "cd $dstdir ; make PERL=$^X";
-        print STDERR "#   $cmd\n" if $options->{verbose} && $options->{verbose} > 3;
-        qx"$cmd";
-        return $dstdir;
-}
-
-sub gimme5
-{
-        my ($workdir, $options) = @_;
-
-        my $gimme5    = "gimme5";
-        my $perl6file = "$goal";
-        my $cmd       = "cd $workdir ; $^X -I. $gimme5 $perl6file";
-
-        print STDERR "# Running benchmark....\n" if $options->{verbose} && $options->{verbose} > 2;
-        print STDERR "#   $cmd\n"                if $options->{verbose} && $options->{verbose} > 3;
-
-        my $t;
-        $t = timeit ($count, sub { qx"$cmd" });
-        return {
-                Benchmark => $t,
-                goal      => $goal,
-               };
+        my $makeviv = { Benchmark => timeit(1,
+                                            sub {
+                                                 $cmd = "cd $dstdir ; make PERL=$^X 2>&1";
+                                                 print STDERR "#   $cmd\n" if $options->{verbose} && $options->{verbose} >= 4;
+                                                 my $output = qx"$cmd";
+                                                 $output =~ s/^/\# /msg;
+                                                 print STDERR $output if $options->{verbose} && $options->{verbose} >= 4;
+                                                }),
+                      };
+        return $dstdir, $makeviv;
 }
 
 sub viv
@@ -63,8 +53,8 @@ sub viv
         my $perl6file = "$workdir/$goal";
         my $cmd       = "cd $workdir ; $^X -I. $viv $perl6file";
 
-        print STDERR "# Running benchmark...\n" if $options->{verbose} && $options->{verbose} > 2;
-        print STDERR "#   $cmd\n"               if $options->{verbose} && $options->{verbose} > 3;
+        print STDERR "# Running benchmark...\n" if $options->{verbose} && $options->{verbose} >= 3;
+        print STDERR "#   $cmd\n"               if $options->{verbose} && $options->{verbose} >= 4;
 
         my $t;
         $t = timeit ($count, sub { qx"$cmd" });
@@ -80,19 +70,47 @@ sub main {
         $goal  = $options->{fastmode} ? "hello.p6" : "STD.pm6";
         $count = $options->{fastmode} ? 1          : 5;
 
-        my $workdir = prepare($options);
+        my $workdir;
+        my $makeviv;
+        my $viv;
+        ($workdir, $makeviv ) = prepare($options);
+        $viv = viv($workdir, $options);
+
         return {
-                #gimme5 => gimme5($workdir, $options),
-                viv    => viv($workdir, $options),
+                makeviv => $makeviv,
+                viv     => $viv,
                };
 }
 
 1;
 
-__END__
+
+
+=pod
+
+=encoding utf-8
+
+=head1 NAME
+
+Benchmark::Perl::Formance::Plugin::P6STD
 
 =head1 NAME
 
 Benchmark::Perl::Formance::Plugin::P6STD - Stress using Perl6/Perl5 tools around STD.pm
 
+=head1 AUTHOR
+
+Steffen Schwigon <ss5@renormalist.net>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2012 by Steffen Schwigon.
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
 =cut
+
+
+__END__
+
