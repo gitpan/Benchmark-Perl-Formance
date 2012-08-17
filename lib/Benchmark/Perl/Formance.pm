@@ -1,11 +1,11 @@
 package Benchmark::Perl::Formance;
-# git description: v0.28-1-g0abf054
+# git description: v0.29-1-g9748eae
 
 BEGIN {
   $Benchmark::Perl::Formance::AUTHORITY = 'cpan:SCHWIGON';
 }
 {
-  $Benchmark::Perl::Formance::VERSION = '0.29';
+  $Benchmark::Perl::Formance::VERSION = '0.30';
 }
 
 use 5.008;
@@ -273,6 +273,7 @@ sub run_plugin
                                 print STDERR "\n"                 if $self->{options}{verbose};
                                 exit 0;
                         }
+                        $0 = "benchmark-perl-formance-$pluginname";
                         my $orig_values = $self->prepare_stable_system;
                         $res = &{"Benchmark::Perl::Formance::Plugin::${pluginname}::main"}($self->{options});
                         $res->{PLUGIN_VERSION} = ${"Benchmark::Perl::Formance::Plugin::${pluginname}::VERSION"};
