@@ -1,11 +1,11 @@
 package Benchmark::Perl::Formance;
-# git description: 0.09-94-gbf70f0e
+# git description: v0.28-1-g0abf054
 
 BEGIN {
   $Benchmark::Perl::Formance::AUTHORITY = 'cpan:SCHWIGON';
 }
 {
-  $Benchmark::Perl::Formance::VERSION = '0.28';
+  $Benchmark::Perl::Formance::VERSION = '0.29';
 }
 
 use 5.008;
@@ -41,11 +41,11 @@ my $DEFAULT_PLUGINS = join ",", qw(DPath
                                    Shootout::spectralnorm
                                  );
 
+# FibMXDeclare
 my $ALL_PLUGINS = join ",", qw(DPath
                                Fib
                                FibMoose
                                FibMouse
-                               FibMXDeclare
                                FibOO
                                Mem
                                P6STD
