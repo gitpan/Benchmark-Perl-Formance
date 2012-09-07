@@ -31,7 +31,8 @@ sub main {
         $easy_ham = $options->{fastmode} ? "easy_ham_subset" : "easy_ham";
 
         my $dstdir = tempdir( CLEANUP => 1 );
-        my $srcdir = dist_dir('Benchmark-Perl-Formance-Cargo')."/SpamAssassin";
+        my $srcdir; eval { $srcdir = dist_dir('Benchmark-Perl-Formance-Cargo')."/SpamAssassin" };
+        return { salearn => { failed => "no Benchmark-Perl-Formance-Cargo" } } if $@;
 
         print STDERR "# Prepare cargo spam'n'ham files in $dstdir ...\n" if $options->{verbose} >= 3;
 
@@ -65,14 +66,16 @@ sub main {
         } else {
                 print STDERR "# could not write sa-learn.cfg: $salearncfg" if $options->{verbose} >= 2;
         }
-        my $cmd = "$^X -T $salearn --ham -L --config-file=$salearncfg --prefs-file=$salearnprefs --siteconfigpath=$dstdir --dbpath=$dstdir/db --no-sync  '$dstdir/$easy_ham/*'";
-        print STDERR "# $cmd\n" if $options->{verbose} >= 3;
+        my $cmd = "$^X -T $salearn --ham -L --config-file=$salearncfg --prefs-file=$salearnprefs --siteconfigpath=$dstdir --dbpath=$dstdir/db --no-sync  '$dstdir/$easy_ham/*' 2>&1";
+        print STDERR "# $cmd\n" if $options->{verbose} >= 4;
+        print STDERR "# Run...\n" if $options->{verbose} >= 3;
 
-        my $ret;
-        my $t = timeit $count, sub {
-                                    print STDERR "# Run...\n" if $options->{verbose} >= 3;
-                                    $ret = qx($cmd); # catch stdout
-                                   };
+        my @output;
+        my $t = timeit $count, sub { @output = map { chomp; $_ } qx($cmd) };
+
+        my $maxerr = ($#output < 10) ? $#output : 10;
+        print STDERR join("\n# ", "", @output[0..$maxerr])    if $options->{verbose} >= 4;
+
         return {
                 salearn => {
                             Benchmark    => $t,

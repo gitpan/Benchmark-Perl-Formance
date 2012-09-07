@@ -1,11 +1,11 @@
 package Benchmark::Perl::Formance;
-# git description: v0.29-1-g9748eae
+# git description: v0.30-10-g4f7b023
 
 BEGIN {
   $Benchmark::Perl::Formance::AUTHORITY = 'cpan:SCHWIGON';
 }
 {
-  $Benchmark::Perl::Formance::VERSION = '0.30';
+  $Benchmark::Perl::Formance::VERSION = '0.31';
 }
 
 use 5.008;
@@ -268,9 +268,12 @@ sub run_plugin
                         close PARENT_RDR;
                         eval "use Benchmark::Perl::Formance::Plugin::$pluginname"; ## no critic
                         if ($@) {
-                                print STDERR "# Skip plugin '$pluginname'" if $self->{options}{verbose};
-                                print STDERR ":$@"                if $self->{options}{verbose} >= 2;
-                                print STDERR "\n"                 if $self->{options}{verbose};
+                                my @errors = split qr/\n/, $@;
+                                my $maxerr = ($#errors < 10) ? $#errors : 10;
+                                print STDERR "# Skip plugin '$pluginname'"             if $self->{options}{verbose};
+                                print STDERR ":".$errors[0]                            if $self->{options}{verbose} > 1;
+                                print STDERR join("\n# ", "", @errors[1..$maxerr])     if $self->{options}{verbose} > 2;
+                                print STDERR "\n"                                      if $self->{options}{verbose};
                                 exit 0;
                         }
                         $0 = "benchmark-perl-formance-$pluginname";
@@ -310,6 +313,18 @@ sub _perl_gitversion {
         }
 }
 
+sub _perl_gitdescribe {
+        my $perlpath = "$^X";
+        $perlpath    =~ s,/[^/]*$,,;
+        my $perl_gitdescribe  = "$perlpath/perl-gitdescribe";
+
+        if (-x $perl_gitdescribe) {
+                my $gitdescribe = qx!$perl_gitdescribe! ;
+                chomp $gitdescribe;
+                return $gitdescribe;
+        }
+}
+
 sub _perl_codespeed_executable {
         my $perlpath = "$^X";
         $perlpath    =~ s,/[^/]*$,,;
@@ -320,6 +335,17 @@ sub _perl_codespeed_executable {
                 chomp $executable;
                 return $executable;
         }
+}
+
+sub _codespeed_optional_tag {
+        # only create tags for stable releases
+        my $gitdescribe = _perl_gitdescribe;
+        if ($gitdescribe =~ /^(v|perl-)?5\.(\d+)\.\d+$/) {
+                if ($2 % 2 == 0) {
+                        return (tag => $gitdescribe);
+                }
+        }
+        return ();
 }
 
 sub _get_hostname {
@@ -354,6 +380,8 @@ sub generate_codespeed_data
                               branch      => $codespeed_branch,
                               commitid    => $codespeed_commitid,
                               environment => $codespeed_environment,
+                              # do not add tag here, it seems not to be the correct API,
+                              # _codespeed_optional_tag
                              );
 
         foreach (sort @run_plugins) {

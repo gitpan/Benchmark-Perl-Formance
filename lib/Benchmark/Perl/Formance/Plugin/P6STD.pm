@@ -6,7 +6,7 @@ BEGIN {
 use strict;
 use warnings;
 
-our $VERSION = "0.001";
+our $VERSION = "0.002";
 
 #############################################################
 #                                                           #
@@ -27,21 +27,23 @@ sub prepare {
         my ($options) = @_;
 
         my $dstdir = tempdir( CLEANUP => 1 );
-        my $cmd;
 
-        my $srcdir = dist_dir('Benchmark-Perl-Formance-Cargo')."/P6STD";
+        my $srcdir; eval { $srcdir = dist_dir('Benchmark-Perl-Formance-Cargo')."/P6STD" };
+        return if $@;
+
         print STDERR "# Make viv in $dstdir ...\n" if $options->{verbose} >= 3;
         dircopy($srcdir, $dstdir);
 
-        my $makeviv = { Benchmark => timeit(1,
-                                            sub {
-                                                 $cmd = "cd $dstdir ; make PERL=$^X 2>&1";
-                                                 print STDERR "#   $cmd\n" if $options->{verbose} && $options->{verbose} >= 4;
-                                                 my $output = qx"$cmd";
-                                                 $output =~ s/^/\# /msg;
-                                                 print STDERR $output if $options->{verbose} && $options->{verbose} >= 4;
-                                                }),
-                      };
+        my $cmd = "cd $dstdir ; make PERL=$^X 2>&1";
+        print STDERR "# $cmd\n"   if $options->{verbose} && $options->{verbose} >= 4;
+        print STDERR "# Run...\n" if $options->{verbose} && $options->{verbose} >= 3;
+
+        my @output;
+        my $makeviv = { Benchmark => timeit(1, sub { @output = map { chomp; $_ } qx"$cmd" }) };
+
+        my $maxerr = ($#output < 10) ? $#output : 10;
+        print STDERR join("\n# ", "", @output[0..$maxerr])    if $options->{verbose} >= 4;
+
         return $dstdir, $makeviv;
 }
 
@@ -53,11 +55,15 @@ sub viv
         my $perl6file = "$workdir/$goal";
         my $cmd       = "cd $workdir ; $^X -I. $viv $perl6file";
 
-        print STDERR "# Running benchmark...\n" if $options->{verbose} && $options->{verbose} >= 3;
-        print STDERR "#   $cmd\n"               if $options->{verbose} && $options->{verbose} >= 4;
+        print STDERR "# $cmd\n"   if $options->{verbose} && $options->{verbose} >= 4;
+        print STDERR "# Run...\n" if $options->{verbose} && $options->{verbose} >= 3;
 
-        my $t;
-        $t = timeit ($count, sub { qx"$cmd" });
+        my @output;
+        my $t = timeit ($count, sub { @output = map { chomp; $_ } qx"$cmd" });
+
+        my $maxerr = ($#output < 10) ? $#output : 10;
+        print STDERR join("\n# ", "", @output[0..$maxerr])    if $options->{verbose} >= 4;
+
         return {
                 Benchmark => $t,
                 goal      => $goal,
@@ -74,6 +80,8 @@ sub main {
         my $makeviv;
         my $viv;
         ($workdir, $makeviv ) = prepare($options);
+        return { failed => "no Benchmark-Perl-Formance-Cargo" } if not $workdir;
+
         $viv = viv($workdir, $options);
 
         return {
