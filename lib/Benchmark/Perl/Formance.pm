@@ -1,11 +1,11 @@
 package Benchmark::Perl::Formance;
-# git description: v0.30-10-g4f7b023
+# git description: v0.31-2-gdbf8c87
 
 BEGIN {
   $Benchmark::Perl::Formance::AUTHORITY = 'cpan:SCHWIGON';
 }
 {
-  $Benchmark::Perl::Formance::VERSION = '0.31';
+  $Benchmark::Perl::Formance::VERSION = '0.32';
 }
 
 use 5.008;

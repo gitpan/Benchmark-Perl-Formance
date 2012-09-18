@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-use 5.010;
+
 
 use ExtUtils::MakeMaker 6.30;
 
@@ -13,7 +13,7 @@ my %WriteMakefileArgs = (
   "AUTHOR" => "Steffen Schwigon <ss5\@renormalist.net>",
   "BUILD_REQUIRES" => {
     "Data::YAML::Reader" => 0,
-    "Test::More" => 0
+    "Test::More" => "0.88"
   },
   "CONFIGURE_REQUIRES" => {
     "ExtUtils::MakeMaker" => "6.30"
@@ -25,41 +25,14 @@ my %WriteMakefileArgs = (
   "LICENSE" => "perl",
   "NAME" => "Benchmark::Perl::Formance",
   "PREREQ_PM" => {
-    "Benchmark" => 0,
-    "Clone" => 0,
-    "Config" => 0,
-    "Cwd" => 0,
     "Data::DPath" => 0,
-    "Data::Dumper" => 0,
     "Data::Structure::Util" => 0,
     "Data::YAML::Writer" => 0,
     "Devel::Platform::Info" => 0,
-    "Exporter" => 0,
-    "File::Copy::Recursive" => 0,
-    "File::Find" => 0,
-    "File::ShareDir" => 0,
-    "File::Temp" => 0,
-    "Getopt::Long" => 0,
-    "IO::Handle" => 0,
-    "IO::Select" => 0,
     "List::Util" => 0,
-    "Math::GMP" => 0,
-    "Math::MatrixReal" => 0,
-    "Moose" => 0,
-    "MooseX::Declare" => 0,
-    "Mouse" => 0,
-    "Storable" => 0,
-    "Sys::Hostname" => 0,
-    "Time::HiRes" => 0,
-    "constant" => 0,
-    "integer" => 0,
-    "strict" => 0,
-    "threads" => 0,
-    "threads::shared" => 0,
-    "vars" => 0,
-    "warnings" => 0
+    "Sys::Hostname" => 0
   },
-  "VERSION" => "0.31",
+  "VERSION" => "0.32",
   "test" => {
     "TESTS" => "t/*.t"
   }
