@@ -1,5 +1,8 @@
 Revision history for Benchmark-Perl-Formance
 
+0.33      2012-09-19
+  - drop tests that require dependencies
+
 0.32      2012-09-18
   - fix dependency cleanup, no more [AutoPrereqs]
 
